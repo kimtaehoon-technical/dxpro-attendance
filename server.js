@@ -429,7 +429,7 @@ app.get('/login', (req, res) => {
                 <div class="divider">または</div>
                 
                 <div class="links">
-                    <a href="/register">新規アカウント作成</a>
+                    <a href="https://dxpro-sol.com">新規アカウント作成</a>
                 </div>
                 
                 <div class="footer">
