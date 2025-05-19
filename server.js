@@ -227,7 +227,6 @@ app.get('/login', (req, res) => {
                 
                 .logo {
                     text-align: center;
-                    margin-bottom: 1.5rem;
                 }
                 
                 .logo img {
