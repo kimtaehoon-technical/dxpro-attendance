@@ -3,6 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
+const path = require('path');
 const app = express();
 
 // MongoDB接続
@@ -160,8 +161,6 @@ async function createAdminUser() {
 app.get('/', requireLogin, (req, res) => {
     res.redirect('/dashboard');
 });
-
-app.use(express.static(path.join(__dirname, 'public')));
 
 // ログインページ
 app.get('/login', (req, res) => {
