@@ -432,7 +432,7 @@ app.get('/login', (req, res) => {
                 <div class="divider">または</div>
                 
                 <div class="links">
-                    <a href="https://dxpro-sol.com"DXPRO SOLUTIONS ポータルサイト</a>
+                <a href="https://dxpro-sol.com" target="_blank">DXPRO SOLUTIONS ポータルサイト</a>
                 </div>
                 
                 <div class="footer">
