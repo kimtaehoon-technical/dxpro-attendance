@@ -230,8 +230,8 @@ app.get('/login', (req, res) => {
                 }
                 
                 .logo img {
-                    width: 300px;
-                    height: 120px;
+                    width: 260px;
+                    height: 130px;
                 }
                 
                 .logo h1 {
@@ -243,7 +243,7 @@ app.get('/login', (req, res) => {
                 
                 .logo .subtitle {
                     color: var(--dark-gray);
-                    font-size: 0.9rem;
+                    font-size: 1.2rem;
                     font-weight: 400;
                 }
                 
