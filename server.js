@@ -250,7 +250,7 @@ app.get('/login', (req, res) => {
                 }
                 
                 .login-form {
-                    margin-top: 1.5rem;
+                    margin-top: 0.5rem;
                 }
                 
                 .form-group {
