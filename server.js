@@ -77,6 +77,9 @@ const User = mongoose.model('User', UserSchema);
 const Attendance = mongoose.model('Attendance', AttendanceSchema);
 const Employee = mongoose.model('Employee', EmployeeSchema);
 
+const moment = require('moment-timezone');
+const now = moment().tz('Asia/Tokyo').toDate();
+
 // ミドルウェア設定
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -429,7 +432,7 @@ app.get('/login', (req, res) => {
                 <div class="divider">または</div>
                 
                 <div class="links">
-                    <a href="https://dxpro-sol.com">新規アカウント作成</a>
+                    <a href="https://dxpro-sol.com"DXPRO SOLUTIONS ポータルサイト</a>
                 </div>
                 
                 <div class="footer">
@@ -961,19 +964,21 @@ app.post('/update-attendance/:id', requireLogin, async (req, res) => {
 
 // 出勤処理
 app.post('/checkin', requireLogin, async (req, res) => {
+    const moment = require('moment-timezone');
     try {
         const user = await User.findById(req.session.userId);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+
+        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
+        const tomorrow = moment(today).add(1, 'day').toDate();
         
         const existingRecord = await Attendance.findOne({
             userId: user._id,
-            date: { $gte: today, $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) }
+            date: { $gte: today, $lt: tomorrow }
         });
-        
+
         if (existingRecord) return res.redirect('/dashboard');
         
-        const now = new Date();
+        const now = moment().tz('Asia/Tokyo').toDate();
         const attendance = new Attendance({
             userId: user._id,
             date: today,
@@ -1215,17 +1220,18 @@ app.post('/save-attendance', requireLogin, async (req, res) => {
 app.post('/start-lunch', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
+
+        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
+        const tomorrow = moment(today).add(1, 'day').toDate();
+
         const attendance = await Attendance.findOne({
             userId: user._id,
-            date: { $gte: today, $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) }
+            date: { $gte: today, $lt: tomorrow }
         });
-        
+
         if (!attendance) return res.redirect('/dashboard');
-        
-        attendance.lunchStart = new Date();
+
+        attendance.lunchStart = moment().tz('Asia/Tokyo').toDate();
         await attendance.save();
         res.redirect('/dashboard');
     } catch (error) {
@@ -1238,17 +1244,18 @@ app.post('/start-lunch', requireLogin, async (req, res) => {
 app.post('/end-lunch', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
+
+        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
+        const tomorrow = moment(today).add(1, 'day').toDate();
+
         const attendance = await Attendance.findOne({
             userId: user._id,
-            date: { $gte: today, $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) }
+            date: { $gte: today, $lt: tomorrow }
         });
-        
+
         if (!attendance || !attendance.lunchStart) return res.redirect('/dashboard');
-        
-        attendance.lunchEnd = new Date();
+
+        attendance.lunchEnd = moment().tz('Asia/Tokyo').toDate();
         await attendance.save();
         res.redirect('/dashboard');
     } catch (error) {
@@ -1261,19 +1268,20 @@ app.post('/end-lunch', requireLogin, async (req, res) => {
 app.post('/checkout', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
+
+        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
+        const tomorrow = moment(today).add(1, 'day').toDate();
+
         const attendance = await Attendance.findOne({
             userId: user._id,
-            date: { $gte: today, $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) }
+            date: { $gte: today, $lt: tomorrow }
         });
-        
+
         if (!attendance) return res.redirect('/dashboard');
-        
-        const now = new Date();
+
+        const now = moment().tz('Asia/Tokyo').toDate();
         attendance.checkOut = now;
-        
+
         // 昼休み時間がある場合の計算
         if (attendance.lunchStart && attendance.lunchEnd) {
             const lunchDuration = (attendance.lunchEnd - attendance.lunchStart) / (1000 * 60 * 60);
@@ -1285,8 +1293,9 @@ app.post('/checkout', requireLogin, async (req, res) => {
             attendance.workingHours = Math.round(totalDuration * 10) / 10;
             attendance.totalHours = attendance.workingHours;
         }
-        
+
         if (attendance.workingHours < 8) attendance.status = '早退';
+
         await attendance.save();
         res.redirect('/dashboard');
     } catch (error) {
