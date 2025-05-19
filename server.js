@@ -230,13 +230,13 @@ app.get('/login', (req, res) => {
                 }
                 
                 .logo img {
-                    width: 220px;
+                    width: 240px;
                     height: 130px;
                 }
                 
                 .logo h1 {
                     color: var(--dxpro-blue);
-                    font-size: 1.8rem;
+                    font-size: 1.5rem;
                     font-weight: 700;
                     letter-spacing: -0.5px;
                 }
