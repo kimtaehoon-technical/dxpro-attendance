@@ -236,7 +236,7 @@ app.get('/login', (req, res) => {
                 
                 .logo h1 {
                     color: var(--dxpro-blue);
-                    font-size: 1.5rem;
+                    font-size: 1rem;
                     font-weight: 700;
                     letter-spacing: -0.5px;
                 }
@@ -245,7 +245,6 @@ app.get('/login', (req, res) => {
                     color: var(--dark-gray);
                     font-size: 1.5rem;
                     font-weight: 400;
-                    margin-bottom: 0.5rem;
                 }
                 
                 .login-form {
