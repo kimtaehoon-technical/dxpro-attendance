@@ -565,17 +565,17 @@ app.get('/dashboard', requireLogin, async (req, res) => {
             `);
         }
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        
+        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
+        const tomorrow = moment(today).add(1, 'day').toDate();
+
         const todayAttendance = await Attendance.findOne({
             userId: user._id,
-            date: { $gte: today, $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) }
+            date: { $gte: today, $lt: tomorrow }
         });
 
-        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        
+        const firstDayOfMonth = moment().tz('Asia/Tokyo').startOf('month').toDate();
+        const lastDayOfMonth = moment().tz('Asia/Tokyo').endOf('month').toDate();
+
         const monthlyAttendance = await Attendance.find({
             userId: user._id,
             date: { $gte: firstDayOfMonth, $lte: lastDayOfMonth }
@@ -609,15 +609,15 @@ app.get('/dashboard', requireLogin, async (req, res) => {
                             <a href="/add-attendance" class="btn add-btn">打刻追加</a>
                         </div>
                         ${todayAttendance ? `
-                            <p>出勤: ${todayAttendance.checkIn?.toLocaleTimeString('ja-JP') || '-'}</p>
+                            <p>出勤: ${todayAttendance.checkIn ? moment(todayAttendance.checkIn).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</p>
                             ${todayAttendance.lunchStart ? `
-                                <p>昼休み開始: ${todayAttendance.lunchStart.toLocaleTimeString('ja-JP')}</p>
+                                <p>昼休み開始: ${moment(todayAttendance.lunchStart).tz('Asia/Tokyo').format('HH:mm:ss')}</p>
                                 ${todayAttendance.lunchEnd ? `
-                                    <p>昼休み終了: ${todayAttendance.lunchEnd.toLocaleTimeString('ja-JP')}</p>
+                                    <p>昼休み終了: ${moment(todayAttendance.lunchEnd).tz('Asia/Tokyo').format('HH:mm:ss')}</p>
                                 ` : ''}
                             ` : ''}
                             ${todayAttendance.checkOut ? `
-                                <p>退勤: ${todayAttendance.checkOut.toLocaleTimeString('ja-JP')}</p>
+                                <p>退勤: ${moment(todayAttendance.checkOut).tz('Asia/Tokyo').format('HH:mm:ss')}</p>
                                 <p>勤務時間: ${todayAttendance.workingHours || 0}時間 (昼休み除く)</p>
                                 <p>総滞在時間: ${todayAttendance.totalHours || 0}時間</p>
                                 <p>状態: ${todayAttendance.status}</p>
@@ -651,7 +651,7 @@ app.get('/dashboard', requireLogin, async (req, res) => {
                     <div class="monthly-attendance">
                         <h3>今月の勤怠記録</h3>
                         <div class="monthly-actions">
-                            <a href="/my-monthly-attendance?year=${today.getFullYear()}&month=${today.getMonth() + 1}" 
+                            <a href="/my-monthly-attendance?year=${moment().tz('Asia/Tokyo').year()}&month=${moment().tz('Asia/Tokyo').month() + 1}" 
                                class="btn monthly-btn">月別勤怠照会</a>
                         </div>
                         <table>
@@ -668,9 +668,9 @@ app.get('/dashboard', requireLogin, async (req, res) => {
                             <tbody>
                                 ${monthlyAttendance.map(record => `
                                     <tr>
-                                        <td>${record.date.toLocaleDateString('ja-JP')}</td>
-                                        <td>${record.checkIn?.toLocaleTimeString('ja-JP') || '-'}</td>
-                                        <td>${record.checkOut?.toLocaleTimeString('ja-JP') || '-'}</td>
+                                        <td>${moment(record.date).tz('Asia/Tokyo').format('YYYY/MM/DD')}</td>
+                                        <td>${record.checkIn ? moment(record.checkIn).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
+                                        <td>${record.checkOut ? moment(record.checkOut).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
                                         <td>${record.workingHours || '-'}</td>
                                         <td>${record.status}</td>
                                         <td>${record.notes || '-'}</td>
