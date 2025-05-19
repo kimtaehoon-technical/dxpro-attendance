@@ -244,7 +244,6 @@ app.get('/login', (req, res) => {
                 .logo .subtitle {
                     color: var(--dark-gray);
                     font-size: 0.9rem;
-                    margin-top: 0.2rem;
                     font-weight: 400;
                 }
                 
