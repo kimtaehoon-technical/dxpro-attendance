@@ -168,8 +168,8 @@ app.get('/login', (req, res) => {
         <html lang="ja">
         <head>
             <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>DXPRO SOLUTIONS - 勤怠管理システム</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
             <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
             <style>
                 :root {
@@ -497,7 +497,7 @@ app.get('/change-password', requireLogin, (req, res) => {
         <html lang="ja">
         <head>
             <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
             <title>DXPRO SOLUTIONS - パスワード変更</title>
             <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
             <style>
@@ -664,6 +664,7 @@ app.get('/register', (req, res) => {
         <html>
         <head>
             <title>新規登録</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
             <link rel="stylesheet" href="/styles.css">
             <script>
                 function updateClock() {
@@ -751,6 +752,7 @@ app.get('/dashboard', requireLogin, async (req, res) => {
             <html>
             <head>
                 <title>勤怠システム - ${employee.name}</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                 <link rel="stylesheet" href="/styles.css">
                 <script>
                     function updateClock() {
@@ -896,6 +898,7 @@ app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
             <html>
             <head>
                 <title>勤怠記録編集</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                 <link rel="stylesheet" href="/styles.css">
                 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
@@ -1167,6 +1170,7 @@ app.get('/add-attendance', requireLogin, (req, res) => {
         <html>
         <head>
             <title>打刻追加</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
             <link rel="stylesheet" href="/styles.css">
             <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
             <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
@@ -1477,6 +1481,7 @@ app.get('/admin/register-employee', requireLogin, isAdmin, (req, res) => {
         <html>
         <head>
             <title>従業員登録</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
             <link rel="stylesheet" href="/styles.css">
             <script>
                 function updateClock() {
@@ -1617,6 +1622,7 @@ app.get('/admin/monthly-attendance', requireLogin, isAdmin, async (req, res) => 
             <html>
             <head>
                 <title>月別勤怠照会</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">                
                 <link rel="stylesheet" href="/styles.css">
                 <style>
                     .approval-notice {
@@ -1955,6 +1961,7 @@ app.get('/admin/print-attendance', requireLogin, isAdmin, async (req, res) => {
             <html>
             <head>
                 <title>勤怠表印刷 - ${employee.name}</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                 <link rel="stylesheet" href="/styles.css">
                 <style>
                     @media print {
@@ -2112,6 +2119,7 @@ app.get('/my-monthly-attendance', requireLogin, async (req, res) => {
             <html>
             <head>
                 <title>私の勤怠記録 - ${year}年${month}月</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                 <link rel="stylesheet" href="/styles.css">
                 <style>
                     .request-status {
@@ -2369,6 +2377,7 @@ app.get('/admin/approval-requests', requireLogin, isAdmin, async (req, res) => {
             <html>
             <head>
                 <title>承認リクエスト一覧</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                 <link rel="stylesheet" href="/styles.css">
                 <style>
                     .request-card {
@@ -2657,6 +2666,7 @@ app.get('/admin/view-attendance/:userId/:year/:month', requireLogin, isAdmin, as
             <html>
             <head>
                 <title>勤怠確認 - ${employee.name}</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                 <link rel="stylesheet" href="/styles.css">
             </head>
             <body>
@@ -2732,6 +2742,7 @@ app.get('/print-attendance', requireLogin, async (req, res) => {
             <html>
             <head>
                 <title>勤怠表印刷 - ${employee.name}</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                 <link rel="stylesheet" href="/styles.css">
                 <style>
                     @media print {
@@ -3413,10 +3424,15 @@ app.get('/styles.css', (req, res) => {
         /* Responsive styles */
         @media (max-width: 768px) {
             .container {
-                padding: 1.5rem;
-                margin: 1rem;
+                padding: 1rem;
+                margin: 0.5rem;
+                width: auto;
             }
-            
+
+            body {
+                font-size: 14px;
+            }
+
             .form-row {
                 flex-direction: column;
             }
@@ -3435,11 +3451,31 @@ app.get('/styles.css', (req, res) => {
                 display: block;
                 overflow-x: auto;
                 white-space: nowrap;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .btn {
+                padding: 0.7rem 1rem;
+                font-size: 0.9rem;
+            }
+
+            .form-group {
+                margin-bottom: 1rem;
             }
             
-            .btn {
+            input, select, textarea {
+                padding: 0.7rem;
+            }
+            
+            .employee-header, .attendance-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .employee-actions, .actions {
                 width: 100%;
-                margin-right: 0;
+                justify-content: flex-start;
+                margin-top: 1rem;
             }
         }
 
@@ -3571,6 +3607,53 @@ app.get('/styles.css', (req, res) => {
         .badge-dark {
             color: white;
             background-color: #343a40;
+        }
+
+        @media (max-width: 480px) {
+            body {
+                font-size: 13px;
+            }
+            
+            .container {
+                padding: 0.8rem;
+            }
+            
+            h2 {
+                font-size: 1.2rem;
+            }
+            
+            .btn {
+                width: 100%;
+                margin-right: 0;
+            }
+            
+            .form-row {
+                flex-direction: column;
+            }
+            
+            .form-row .form-group {
+                min-width: 100%;
+            }
+            
+            .modal-content {
+                width: 95%;
+                padding: 1rem;
+            }
+        }
+        
+        /* 테이블 모바일 대응 */
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* 모바일에서 터치 영역 확대 */
+        .btn {
+            min-height: 44px;
+        }
+        
+        input, select, textarea {
+            min-height: 44px;
         }
     `);
 });
