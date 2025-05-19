@@ -207,6 +207,7 @@ app.get('/login', (req, res) => {
                 .login-container {
                     width: 100%;
                     max-width: 420px;
+                    padding: 1.5rem;
                     background: var(--white);
                     border-radius: 12px;
                     box-shadow: 0 10px 30px rgba(0, 86, 179, 0.1);
@@ -229,8 +230,8 @@ app.get('/login', (req, res) => {
                 }
                 
                 .logo img {
-                    width: 330px;
-                    height: 350px;
+                    width: 350px;
+                    height: 290px;
                 }
                 
                 .logo h1 {
