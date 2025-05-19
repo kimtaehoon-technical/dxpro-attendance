@@ -3,7 +3,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
-const path = require('path');
 const app = express();
 
 // MongoDB接続
@@ -169,7 +168,7 @@ app.get('/login', (req, res) => {
         <html lang="ja">
         <head>
             <meta charset="UTF-8">
-\            <link rel="icon" href="/dxpro-solution.png" type="image/png">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>DXPRO SOLUTIONS - 勤怠管理システム</title>
             <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
             <style>
@@ -394,7 +393,8 @@ app.get('/login', (req, res) => {
         <body>
             <div class="login-container">
                 <div class="logo">
-                    <img src="/dxpro-solution.png" alt="DXPRO Logo">
+                <img src="/dxpro-solution.png" alt="DXPRO" width="50" height="50">
+
                     <h1>DXPRO SOLUTIONS</h1>
                     <div class="subtitle">勤怠管理システム</div>
                 </div>
