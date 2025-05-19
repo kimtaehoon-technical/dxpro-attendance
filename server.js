@@ -231,7 +231,7 @@ app.get('/login', (req, res) => {
                 }
                 
                 .logo img {
-                    height: 50px;
+                    height: 150px;
                 }
                 
                 .logo h1 {
