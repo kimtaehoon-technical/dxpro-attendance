@@ -207,7 +207,7 @@ app.get('/login', (req, res) => {
                 .login-container {
                     width: 100%;
                     max-width: 420px;
-                    padding: 1rem;
+                    padding: 2.5rem;
                     background: var(--white);
                     border-radius: 12px;
                     box-shadow: 0 10px 30px rgba(0, 86, 179, 0.1);
@@ -231,6 +231,7 @@ app.get('/login', (req, res) => {
                 }
                 
                 .logo img {
+                    weight: 150px;
                     height: 150px;
                 }
                 
@@ -393,7 +394,7 @@ app.get('/login', (req, res) => {
         <body>
             <div class="login-container">
                 <div class="logo">
-                <img src="/dxpro-solution.png" alt="DXPRO" width="150" height="200">
+                <img src="/dxpro-solution.png" alt="DXPRO" width="150" height="150">
                     <div class="subtitle">勤怠管理システム</div>
                 </div>
                 
