@@ -161,6 +161,8 @@ app.get('/', requireLogin, (req, res) => {
     res.redirect('/dashboard');
 });
 
+app.use(express.static(path.join(__dirname, 'public')));
+
 // ログインページ
 app.get('/login', (req, res) => {
     res.send(`
@@ -393,9 +395,7 @@ app.get('/login', (req, res) => {
         <body>
             <div class="login-container">
                 <div class="logo">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="var(--dxpro-blue)" width="50" height="50">
-                        <path d="M12 2L1 12l3 3 1.27-1.27L12 5.16l6.73 6.57L21 15l3-3L12 2zm0 15.37l-6.73-6.57L5 15l7 7 7-7-1.27-1.27L12 17.37z"/>
-                    </svg>
+                    <img src="/dxpro-solution.png" alt="DXPRO Logo">
                     <h1>DXPRO SOLUTIONS</h1>
                     <div class="subtitle">勤怠管理システム</div>
                 </div>
