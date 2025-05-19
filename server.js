@@ -239,6 +239,7 @@ app.get('/login', (req, res) => {
                     font-size: 1rem;
                     font-weight: 700;
                     letter-spacing: -0.5px;
+                    margin-bottom: 1rem;
                 }
                 
                 .logo .subtitle {
