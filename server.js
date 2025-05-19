@@ -490,6 +490,173 @@ app.post('/login', async (req, res) => {
     }
 });
 
+// 패스워드 변경 페이지 라우트 (GET)
+app.get('/change-password', requireLogin, (req, res) => {
+    res.send(`
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>DXPRO SOLUTIONS - パスワード変更</title>
+            <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+            <style>
+                .password-container {
+                    max-width: 500px;
+                    margin: 2rem auto;
+                    padding: 2rem;
+                    background: white;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                }
+                .password-title {
+                    color: #0056b3;
+                    margin-bottom: 1.5rem;
+                    text-align: center;
+                }
+                .password-form .form-group {
+                    margin-bottom: 1.5rem;
+                }
+                .password-form label {
+                    display: block;
+                    margin-bottom: 0.5rem;
+                    font-weight: 500;
+                    color: #333;
+                }
+                .password-form input {
+                    width: 100%;
+                    padding: 0.8rem;
+                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    font-size: 1rem;
+                }
+                .password-btn {
+                    width: 100%;
+                    padding: 1rem;
+                    background-color: #0056b3;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    font-size: 1rem;
+                    cursor: pointer;
+                    margin-top: 1rem;
+                }
+                .password-btn:hover {
+                    background-color: #003d82;
+                }
+                .password-message {
+                    margin-top: 1rem;
+                    padding: 0.8rem;
+                    border-radius: 6px;
+                    text-align: center;
+                }
+                .error-message {
+                    background-color: #f8d7da;
+                    color: #721c24;
+                    border-left: 4px solid #dc3545;
+                }
+                .success-message {
+                    background-color: #d4edda;
+                    color: #155724;
+                    border-left: 4px solid #28a745;
+                }
+                .back-link {
+                    display: block;
+                    text-align: center;
+                    margin-top: 1rem;
+                    color: #0056b3;
+                    text-decoration: none;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="password-container">
+                <h2 class="password-title">パスワード変更</h2>
+                
+                ${req.query.error ? `
+                    <div class="password-message error-message">
+                        ${getPasswordErrorMessage(req.query.error)}
+                    </div>
+                ` : ''}
+                
+                ${req.query.success ? `
+                    <div class="password-message success-message">
+                        パスワードが正常に変更されました
+                    </div>
+                ` : ''}
+                
+                <form class="password-form" action="/change-password" method="POST">
+                    <div class="form-group">
+                        <label for="currentPassword">現在のパスワード</label>
+                        <input type="password" id="currentPassword" name="currentPassword" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="newPassword">新しいパスワード</label>
+                        <input type="password" id="newPassword" name="newPassword" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="confirmPassword">新しいパスワード (確認)</label>
+                        <input type="password" id="confirmPassword" name="confirmPassword" required>
+                    </div>
+                    
+                    <button type="submit" class="password-btn">パスワードを変更</button>
+                </form>
+                
+                <a href="/dashboard" class="back-link">ダッシュボードに戻る</a>
+            </div>
+        </body>
+        </html>
+    `);
+});
+
+// 패스워드 변경 처리 라우트 (POST)
+app.post('/change-password', requireLogin, async (req, res) => {
+    try {
+        const user = await User.findById(req.session.userId);
+        
+        // 1. 현재 패스워드 확인
+        const isMatch = await bcrypt.compare(req.body.currentPassword, user.password);
+        if (!isMatch) {
+            return res.redirect('/change-password?error=current_password_wrong');
+        }
+        
+        // 2. 새 패스워드 일치 확인
+        if (req.body.newPassword !== req.body.confirmPassword) {
+            return res.redirect('/change-password?error=new_password_mismatch');
+        }
+        
+        // 3. 새 패스워드 유효성 검사 (최소 8자)
+        if (req.body.newPassword.length < 8) {
+            return res.redirect('/change-password?error=password_too_short');
+        }
+        
+        // 4. 패스워드 업데이트
+        const hashedPassword = await bcrypt.hash(req.body.newPassword, 10);
+        user.password = hashedPassword;
+        await user.save();
+        
+        // 5. 성공 리다이렉트
+        return res.redirect('/change-password?success=true');
+        
+    } catch (error) {
+        console.error('패스워드 변경 오류:', error);
+        return res.redirect('/change-password?error=server_error');
+    }
+});
+
+// 패스워드 관련 에러 메시지 함수 추가
+function getPasswordErrorMessage(errorCode) {
+    const messages = {
+        'current_password_wrong': '現在のパスワードが正しくありません',
+        'new_password_mismatch': '新しいパスワードが一致しません',
+        'password_too_short': 'パスワードは8文字以上必要です',
+        'server_error': 'サーバーエラーが発生しました'
+    };
+    return messages[errorCode] || '不明なエラーが発生しました';
+}
+
 // 新規登録ページ
 app.get('/register', (req, res) => {
     res.send(`
@@ -685,6 +852,7 @@ app.get('/dashboard', requireLogin, async (req, res) => {
                             <a href="/admin/approval-requests" class="btn admin-btn">承認リクエスト一覧</a>
                         </div>
                     ` : ''}
+                    <a href="/change-password" class="btn">パスワード変更</a>
                     <a href="/logout" class="btn logout-btn">ログアウト</a>
                 </div>
             </body>
