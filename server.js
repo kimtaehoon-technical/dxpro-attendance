@@ -1311,7 +1311,7 @@ app.get('/admin/monthly-attendance', requireLogin, isAdmin, async (req, res) => 
                                         ${approvalRequest ? `
                                             <span class="status-badge ${approvalRequest.status}">
                                                 ${approvalRequest.status === 'pending' ? '承認待ち' : 
-                                                  approvalRequest.status === 'approved' ? '承認済み' : '拒否済み'}
+                                                  approvalRequest.status === 'approved' ? '承認済み' : '差し戻し'}
                                             </span>
                                         ` : ''}
                                         <button onclick="printAttendance('${data.employee.employeeId}', ${year}, ${month})" 
