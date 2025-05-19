@@ -232,6 +232,7 @@ app.get('/login', (req, res) => {
                 .logo img {
                     width: 240px;
                     height: 130px;
+                    margin-bottom: 1rem;
                 }
                 
                 .logo h1 {
@@ -246,6 +247,7 @@ app.get('/login', (req, res) => {
                     color: var(--dark-gray);
                     font-size: 1.5rem;
                     font-weight: 400;
+                    margin-bottom: 1.5rem;
                 }
                 
                 .login-form {
