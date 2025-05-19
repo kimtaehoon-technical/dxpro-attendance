@@ -230,7 +230,7 @@ app.get('/login', (req, res) => {
                 }
                 
                 .logo img {
-                    width: 220px;
+                    width: 200px;
                     height: 130px;
                 }
                 
@@ -245,6 +245,7 @@ app.get('/login', (req, res) => {
                     color: var(--dark-gray);
                     font-size: 2.2rem;
                     font-weight: 400;
+                    margin-bottom: 0.5rem;
                 }
                 
                 .login-form {
