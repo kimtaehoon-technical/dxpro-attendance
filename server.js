@@ -162,38 +162,300 @@ app.get('/', requireLogin, (req, res) => {
 app.get('/login', (req, res) => {
     res.send(`
         <!DOCTYPE html>
-        <html>
+        <html lang="ja">
         <head>
-            <title>ログイン</title>
-            <link rel="stylesheet" href="/styles.css">
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>DXPRO SOLUTIONS - 勤怠管理システム</title>
+            <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+            <style>
+                :root {
+                    --dxpro-blue: #0056b3;
+                    --dxpro-dark-blue: #003d82;
+                    --dxpro-light-blue: #e6f0ff;
+                    --dxpro-accent: #ff6b00;
+                    --white: #ffffff;
+                    --light-gray: #f5f7fa;
+                    --medium-gray: #e1e5eb;
+                    --dark-gray: #6c757d;
+                    --text-color: #333333;
+                    --error-color: #dc3545;
+                    --success-color: #28a745;
+                }
+                
+                * {
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }
+                
+                body {
+                    font-family: 'Noto Sans JP', 'Roboto', sans-serif;
+                    background-color: var(--light-gray);
+                    color: var(--text-color);
+                    line-height: 1.6;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                    background-image: linear-gradient(135deg, var(--dxpro-light-blue) 0%, var(--white) 100%);
+                }
+                
+                .login-container {
+                    width: 100%;
+                    max-width: 420px;
+                    padding: 2.5rem;
+                    background: var(--white);
+                    border-radius: 12px;
+                    box-shadow: 0 10px 30px rgba(0, 86, 179, 0.1);
+                    position: relative;
+                    overflow: hidden;
+                }
+                
+                .login-container::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 6px;
+                    background: linear-gradient(90deg, var(--dxpro-blue) 0%, var(--dxpro-accent) 100%);
+                }
+                
+                .logo {
+                    text-align: center;
+                    margin-bottom: 2rem;
+                }
+                
+                .logo img {
+                    height: 50px;
+                }
+                
+                .logo h1 {
+                    color: var(--dxpro-blue);
+                    font-size: 1.8rem;
+                    margin-top: 0.5rem;
+                    font-weight: 700;
+                    letter-spacing: -0.5px;
+                }
+                
+                .logo .subtitle {
+                    color: var(--dark-gray);
+                    font-size: 0.9rem;
+                    margin-top: 0.2rem;
+                    font-weight: 400;
+                }
+                
+                .login-form {
+                    margin-top: 1.5rem;
+                }
+                
+                .form-group {
+                    margin-bottom: 1.5rem;
+                }
+                
+                .form-group label {
+                    display: block;
+                    margin-bottom: 0.5rem;
+                    font-weight: 500;
+                    color: var(--dxpro-dark-blue);
+                    font-size: 0.95rem;
+                }
+                
+                .form-control {
+                    width: 100%;
+                    padding: 0.8rem 1rem;
+                    border: 1px solid var(--medium-gray);
+                    border-radius: 6px;
+                    font-size: 1rem;
+                    transition: all 0.3s ease;
+                    background-color: var(--light-gray);
+                }
+                
+                .form-control:focus {
+                    outline: none;
+                    border-color: var(--dxpro-blue);
+                    box-shadow: 0 0 0 3px rgba(0, 86, 179, 0.1);
+                    background-color: var(--white);
+                }
+                
+                .btn {
+                    width: 100%;
+                    padding: 1rem;
+                    border: none;
+                    border-radius: 6px;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                }
+                
+                .btn-login {
+                    background-color: var(--dxpro-blue);
+                    color: var(--white);
+                    margin-top: 0.5rem;
+                }
+                
+                .btn-login:hover {
+                    background-color: var(--dxpro-dark-blue);
+                    transform: translateY(-2px);
+                    box-shadow: 0 5px 15px rgba(0, 86, 179, 0.2);
+                }
+                
+                .btn-login:active {
+                    transform: translateY(0);
+                }
+                
+                .links {
+                    margin-top: 1.5rem;
+                    text-align: center;
+                    font-size: 0.9rem;
+                }
+                
+                .links a {
+                    color: var(--dxpro-blue);
+                    text-decoration: none;
+                    font-weight: 500;
+                    transition: color 0.2s;
+                }
+                
+                .links a:hover {
+                    color: var(--dxpro-dark-blue);
+                    text-decoration: underline;
+                }
+                
+                .divider {
+                    display: flex;
+                    align-items: center;
+                    margin: 1.5rem 0;
+                    color: var(--dark-gray);
+                    font-size: 0.8rem;
+                }
+                
+                .divider::before, .divider::after {
+                    content: "";
+                    flex: 1;
+                    border-bottom: 1px solid var(--medium-gray);
+                }
+                
+                .divider::before {
+                    margin-right: 1rem;
+                }
+                
+                .divider::after {
+                    margin-left: 1rem;
+                }
+                
+                .error-message {
+                    color: var(--error-color);
+                    background-color: rgba(220, 53, 69, 0.1);
+                    padding: 0.8rem;
+                    border-radius: 6px;
+                    margin-bottom: 1.5rem;
+                    font-size: 0.9rem;
+                    text-align: center;
+                    border-left: 4px solid var(--error-color);
+                }
+                
+                .current-time {
+                    text-align: center;
+                    margin-bottom: 1rem;
+                    font-size: 0.9rem;
+                    color: var(--dark-gray);
+                    font-weight: 500;
+                }
+                
+                .footer {
+                    margin-top: 2rem;
+                    text-align: center;
+                    font-size: 0.8rem;
+                    color: var(--dark-gray);
+                }
+                
+                @media (max-width: 480px) {
+                    .login-container {
+                        padding: 1.5rem;
+                        margin: 1rem;
+                    }
+                    
+                    .logo h1 {
+                        font-size: 1.5rem;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="login-container">
+                <div class="logo">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="var(--dxpro-blue)" width="50" height="50">
+                        <path d="M12 2L1 12l3 3 1.27-1.27L12 5.16l6.73 6.57L21 15l3-3L12 2zm0 15.37l-6.73-6.57L5 15l7 7 7-7-1.27-1.27L12 17.37z"/>
+                    </svg>
+                    <h1>DXPRO SOLUTIONS</h1>
+                    <div class="subtitle">勤怠管理システム</div>
+                </div>
+                
+                <div class="current-time" id="current-time"></div>
+                
+                ${req.query.error ? `
+                    <div class="error-message">
+                        ${getErrorMessageJP(req.query.error)}
+                    </div>
+                ` : ''}
+                
+                <form class="login-form" action="/login" method="POST">
+                    <div class="form-group">
+                        <label for="username">ユーザー名</label>
+                        <input type="text" id="username" name="username" class="form-control" placeholder="ユーザー名を入力" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">パスワード</label>
+                        <input type="password" id="password" name="password" class="form-control" placeholder="パスワードを入力" required>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-login">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+                            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                            <polyline points="10 17 15 12 10 7"></polyline>
+                            <line x1="15" y1="12" x2="3" y2="12"></line>
+                        </svg>
+                        ログイン
+                    </button>
+                </form>
+                
+                <div class="divider">または</div>
+                
+                <div class="links">
+                    <a href="/register">新規アカウント作成</a>
+                </div>
+                
+                <div class="footer">
+                    &copy; ${new Date().getFullYear()} DXPRO SOLUTIONS. All rights reserved.
+                </div>
+            </div>
+            
             <script>
                 function updateClock() {
                     const now = new Date();
+                    const options = { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric', 
+                        weekday: 'long',
+                        hour: '2-digit', 
+                        minute: '2-digit', 
+                        second: '2-digit',
+                        hour12: false
+                    };
                     document.getElementById('current-time').textContent = 
-                        '現在時刻: ' + now.toLocaleTimeString('ja-JP');
+                        now.toLocaleDateString('ja-JP', options);
                 }
                 setInterval(updateClock, 1000);
                 window.onload = updateClock;
             </script>
-        </head>
-        <body>
-            <div class="container">
-                <h2>ログイン</h2>
-                <div id="current-time" class="clock"></div>
-                ${req.query.error ? `<p class="error">${getErrorMessageJP(req.query.error)}</p>` : ''}
-                <form action="/login" method="POST">
-                    <div class="form-group">
-                        <label for="username">ユーザー名:</label>
-                        <input type="text" id="username" name="username" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="password">パスワード:</label>
-                        <input type="password" id="password" name="password" required>
-                    </div>
-                    <button type="submit" class="btn">ログイン</button>
-                </form>
-                <p>アカウントをお持ちでないですか？ <a href="/register">新規登録</a></p>
-            </div>
         </body>
         </html>
     `);
@@ -3152,16 +3414,14 @@ function getErrorMessageJP(errorCode) {
 // サーバー起動
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
-    await mongoose.connection.dropDatabase(); // 테스트용 (실제 운영에서는 사용하지 마세요)
     await createAdminUser();
     
-    // 데이터베이스에서 관리자 계정 확인
     const admin = await User.findOne({ username: 'admin' });
-    console.log('관리자 계정 상태:', {
+    console.log('管理者アカウント状況:', {
         username: admin?.username,
         isAdmin: admin?.isAdmin,
         passwordMatch: admin ? bcrypt.compareSync('admin1234', admin.password) : false
     });
     
-    console.log(`서버가 http://localhost:${PORT}에서 실행 중입니다`);
+    console.log(`サーバーが http://localhost:${PORT}で実行中です。`);
 });
