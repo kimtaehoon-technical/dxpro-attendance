@@ -393,9 +393,7 @@ app.get('/login', (req, res) => {
         <body>
             <div class="login-container">
                 <div class="logo">
-                <img src="/dxpro-solution.png" alt="DXPRO" width="50" height="50">
-
-                    <h1>DXPRO SOLUTIONS</h1>
+                <img src="/dxpro-solution.png" alt="DXPRO" width="200" height="200">
                     <div class="subtitle">勤怠管理システム</div>
                 </div>
                 
