@@ -2019,7 +2019,6 @@ app.get('/admin/print-attendance', requireLogin, isAdmin, async (req, res) => {
                         <div><strong>社員番号:</strong> ${employee.employeeId}</div>
                         <div><strong>部署:</strong> ${employee.department}</div>
                         <div><strong>職位:</strong> ${employee.position}</div>
-                        <div><strong>備考:</strong> ${employee.note}</div>
                     </div>
                     
                     <table>
