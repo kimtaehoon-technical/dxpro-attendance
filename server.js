@@ -247,7 +247,7 @@ app.get('/login', (req, res) => {
                     color: var(--dark-gray);
                     font-size: 1.5rem;
                     font-weight: 400;
-                    margin-bottom: 1.5rem;
+                    margin-bottom: 2rem;
                 }
                 
                 .login-form {
