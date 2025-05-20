@@ -640,7 +640,6 @@ app.get('/change-password', requireLogin, (req, res) => {
     `);
 });
 
-// 휴가 신청 페이지
 app.get('/leave/apply', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
@@ -670,7 +669,6 @@ app.get('/leave/apply', requireLogin, async (req, res) => {
                             minDate: "today"
                         });
                         
-                        // 종료일 변경 시 일수 계산
                         document.getElementById('endDate').addEventListener('change', calculateDays);
                         
                         function calculateDays() {
@@ -688,42 +686,42 @@ app.get('/leave/apply', requireLogin, async (req, res) => {
             </head>
             <body>
                 <div class="container">
-                    <h2>휴가 신청</h2>
+                    <h2>休暇申請</h2>
                     
                     <form action="/leave/apply" method="POST">
                         <div class="form-group">
-                            <label for="leaveType">휴가 종류:</label>
+                            <label for="leaveType">休暇種類:</label>
                             <select id="leaveType" name="leaveType" required>
-                                <option value="">선택하세요</option>
-                                <option value="有給">有給 (유급휴가)</option>
-                                <option value="病欠">病欠 (병가)</option>
-                                <option value="慶弔">慶弔 (경조사)</option>
-                                <option value="その他">その他 (기타)</option>
+                                <option value="">選択してください。</option>
+                                <option value="有給">有給</option>
+                                <option value="病欠">病欠</option>
+                                <option value="慶弔">慶弔</option>
+                                <option value="その他">その他</option>
                             </select>
                         </div>
                         
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="startDate">시작일:</label>
+                                <label for="startDate">開始日:</label>
                                 <input type="text" id="startDate" name="startDate" required>
                             </div>
                             <div class="form-group">
-                                <label for="endDate">종료일:</label>
+                                <label for="endDate">終了日:</label>
                                 <input type="text" id="endDate" name="endDate" required>
                             </div>
                             <div class="form-group">
-                                <label for="days">일수:</label>
+                                <label for="days">日数:</label>
                                 <input type="number" id="days" name="days" readonly>
                             </div>
                         </div>
                         
                         <div class="form-group">
-                            <label for="reason">사유:</label>
+                            <label for="reason">理由:</label>
                             <textarea id="reason" name="reason" rows="4" required></textarea>
                         </div>
                         
-                        <button type="submit" class="btn">신청</button>
-                        <a href="/dashboard" class="btn cancel-btn">취소</a>
+                        <button type="submit" class="btn">申請</button>
+                        <a href="/dashboard" class="btn cancel-btn">キャンセル</a>
                     </form>
                 </div>
             </body>
@@ -731,11 +729,10 @@ app.get('/leave/apply', requireLogin, async (req, res) => {
         `);
     } catch (error) {
         console.error(error);
-        res.status(500).send('휴가 신청 페이지 로딩 중 오류 발생');
+        res.status(500).send('休暇申請ページローディング中にエラーが発生しました。');
     }
 });
 
-// 휴가 신청 처리
 app.post('/leave/apply', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
@@ -747,7 +744,6 @@ app.post('/leave/apply', requireLogin, async (req, res) => {
 
         const { leaveType, startDate, endDate, days, reason } = req.body;
         
-        // 휴가 신청 생성
         const leaveRequest = new LeaveRequest({
             userId: user._id,
             employeeId: employee.employeeId,
@@ -765,11 +761,10 @@ app.post('/leave/apply', requireLogin, async (req, res) => {
         res.redirect('/leave/my-requests');
     } catch (error) {
         console.error(error);
-        res.status(500).send('휴가 신청 처리 중 오류 발생');
+        res.status(500).send('休暇申請エラーが発生しました。');
     }
 });
 
-// 내 휴가 신청 목록
 app.get('/leave/my-requests', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
@@ -780,25 +775,25 @@ app.get('/leave/my-requests', requireLogin, async (req, res) => {
             <!DOCTYPE html>
             <html>
             <head>
-                <title>내 휴가 신청 목록</title>
+                <title>休暇申請履歴</title>
                 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                 <link rel="stylesheet" href="/styles.css">
             </head>
             <body>
                 <div class="container">
-                    <h2>내 휴가 신청 목록</h2>
-                    <a href="/leave/apply" class="btn">새 휴가 신청</a>
+                    <h2>休暇申請履歴</h2>
+                    <a href="/leave/apply" class="btn">休暇申請</a>
                     
                     <table>
                         <thead>
                             <tr>
-                                <th>휴가 종류</th>
-                                <th>기간</th>
-                                <th>일수</th>
-                                <th>상태</th>
-                                <th>신청일</th>
-                                <th>처리일</th>
-                                <th>비고</th>
+                                <th>休暇種類</th>
+                                <th>期間</th>
+                                <th>日数</th>
+                                <th>状況</th>
+                                <th>申請日</th>
+                                <th>承認日</th>
+                                <th>備考</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -811,9 +806,9 @@ app.get('/leave/my-requests', requireLogin, async (req, res) => {
                                     </td>
                                     <td>${req.days}일</td>
                                     <td class="status-${req.status}">
-                                        ${req.status === 'pending' ? '대기중' : 
-                                          req.status === 'approved' ? '승인됨' : 
-                                          req.status === 'rejected' ? '거절됨' : '취소됨'}
+                                        ${req.status === 'pending' ? '待機中' : 
+                                          req.status === 'approved' ? '承認中' : 
+                                          req.status === 'rejected' ? '拒否' : 'キャンセル'}
                                     </td>
                                     <td>${req.createdAt.toLocaleDateString('ja-JP')}</td>
                                     <td>${req.processedAt ? req.processedAt.toLocaleDateString('ja-JP') : '-'}</td>
@@ -822,24 +817,23 @@ app.get('/leave/my-requests', requireLogin, async (req, res) => {
                             `).join('')}
                             ${requests.length === 0 ? `
                                 <tr>
-                                    <td colspan="7">휴가 신청 내역이 없습니다</td>
+                                    <td colspan="7">申請履歴がありません。</td>
                                 </tr>
                             ` : ''}
                         </tbody>
                     </table>
                     
-                    <a href="/dashboard" class="btn">대시보드로 돌아가기</a>
+                    <a href="/dashboard" class="btn">ホームに戻る</a>
                 </div>
             </body>
             </html>
         `);
     } catch (error) {
         console.error(error);
-        res.status(500).send('휴가 신청 목록 조회 중 오류 발생');
+        res.status(500).send('休暇申請履歴照会中エラーが発生しました。');
     }
 });
 
-// 관리자 휴가 신청 목록 (승인/거절)
 app.get('/admin/leave-requests', requireLogin, isAdmin, async (req, res) => {
     try {
         const requests = await LeaveRequest.find({ status: 'pending' })
@@ -850,7 +844,7 @@ app.get('/admin/leave-requests', requireLogin, isAdmin, async (req, res) => {
             <!DOCTYPE html>
             <html>
             <head>
-                <title>휴가 승인 요청</title>
+                <title>休暇承認リクエスト</title>
                 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                 <link rel="stylesheet" href="/styles.css">
                 <style>
@@ -875,7 +869,7 @@ app.get('/admin/leave-requests', requireLogin, isAdmin, async (req, res) => {
             </head>
             <body>
                 <div class="container">
-                    <h2>휴가 승인 요청</h2>
+                    <h2>休暇承認リクエスト</h2>
                     
                     ${requests.map(req => `
                         <div class="request-card">
@@ -883,16 +877,16 @@ app.get('/admin/leave-requests', requireLogin, isAdmin, async (req, res) => {
                                 <h3>${req.name} (${req.employeeId}) - ${req.department}</h3>
                                 <span>${req.createdAt.toLocaleDateString('ja-JP')}</span>
                             </div>
-                            <p><strong>휴가 종류:</strong> ${req.leaveType}</p>
-                            <p><strong>기간:</strong> ${req.startDate.toLocaleDateString('ja-JP')} ~ ${req.endDate.toLocaleDateString('ja-JP')} (${req.days}일)</p>
-                            <p><strong>사유:</strong> ${req.reason}</p>
+                            <p><strong>休暇種類:</strong> ${req.leaveType}</p>
+                            <p><strong>期間:</strong> ${req.startDate.toLocaleDateString('ja-JP')} ~ ${req.endDate.toLocaleDateString('ja-JP')} (${req.days}일)</p>
+                            <p><strong>理由:</strong> ${req.reason}</p>
                             
                             <div class="request-actions">
                                 <form action="/admin/approve-leave/${req._id}" method="POST" style="display:inline;">
-                                    <button type="submit" class="btn">승인</button>
+                                    <button type="submit" class="btn">承認</button>
                                 </form>
                                 <form action="/admin/reject-leave/${req._id}" method="POST" style="display:inline;">
-                                    <button type="submit" class="btn reject-btn">거절</button>
+                                    <button type="submit" class="btn reject-btn">拒否</button>
                                 </form>
                             </div>
                         </div>
@@ -900,18 +894,18 @@ app.get('/admin/leave-requests', requireLogin, isAdmin, async (req, res) => {
                     
                     ${requests.length === 0 ? `
                         <div class="notice">
-                            <p>처리할 휴가 신청이 없습니다</p>
+                            <p>リクエストが存在しません。</p>
                         </div>
                     ` : ''}
                     
-                    <a href="/dashboard" class="btn">대시보드로 돌아가기</a>
+                    <a href="/dashboard" class="btn">ホームに戻る</a>
                 </div>
             </body>
             </html>
         `);
     } catch (error) {
         console.error(error);
-        res.status(500).send('휴가 승인 요청 목록 조회 중 오류 발생');
+        res.status(500).send('休暇承認中エラーが発生しました。');
     }
 });
 
@@ -3683,7 +3677,7 @@ app.get('/styles.css', (req, res) => {
         .reject-btn:hover {
             background-color: #c82333;
         }
-            
+
         .modal {
             display: none;
             position: fixed;
