@@ -804,7 +804,7 @@ app.get('/leave/my-requests', requireLogin, async (req, res) => {
                                         ${req.startDate.toLocaleDateString('ja-JP')} ~
                                         ${req.endDate.toLocaleDateString('ja-JP')}
                                     </td>
-                                    <td>${req.days}일</td>
+                                    <td>${req.days}日</td>
                                     <td class="status-${req.status}">
                                         ${req.status === 'pending' ? '待機中' : 
                                           req.status === 'approved' ? '承認中' : 
