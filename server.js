@@ -878,7 +878,7 @@ app.get('/admin/leave-requests', requireLogin, isAdmin, async (req, res) => {
                                 <span>${req.createdAt.toLocaleDateString('ja-JP')}</span>
                             </div>
                             <p><strong>休暇種類:</strong> ${req.leaveType}</p>
-                            <p><strong>期間:</strong> ${req.startDate.toLocaleDateString('ja-JP')} ~ ${req.endDate.toLocaleDateString('ja-JP')} (${req.days}일)</p>
+                            <p><strong>期間:</strong> ${req.startDate.toLocaleDateString('ja-JP')} ~ ${req.endDate.toLocaleDateString('ja-JP')} (${req.days}日)</p>
                             <p><strong>理由:</strong> ${req.reason}</p>
                             
                             <div class="request-actions">
