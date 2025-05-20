@@ -11,17 +11,6 @@ mongoose.connect(MONGODB_URI)
   .then(() => console.log('MongoDB接続成功'))
   .catch(err => console.error('MongoDB接続エラー:', err));
 
-const nodemailer = require('nodemailer');
-
-// 이메일 전송 설정
-const transporter = nodemailer.createTransport({
-service: 'Gmail', // 사용할 이메일 서비스 (Gmail, Naver 등)
-auth: {
-    user: process.env.EMAIL_USER, // 환경변수에서 이메일 주소 불러오기
-    pass: process.env.EMAIL_PASS  // 환경변수에서 이메일 비밀번호 불러오기
-}
-});
-
 // スキーマ定義 (昼休み時間フィールド追加)
 const UserSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
@@ -103,7 +92,7 @@ const EmployeeSchema = new mongoose.Schema({
     position: { type: String, required: true },
     joinDate: { type: Date, required: true },
     contact: { type: String },
-    email: { type: String, required: true } // 이메일 필드 추가
+    email: { type: String }
 }, {
     // エラー発生時詳細情報表示
     statics: {
@@ -154,65 +143,6 @@ function isAdmin(req, res, next) {
     }
     res.status(403).send('管理者権限が必要です');
 }
-
-// 근태 승인 이메일 전송 함수
-async function sendApprovalEmail(adminEmail, employee, year, month, attendances) {
-    try {
-      // 총 근무 시간 계산
-      const totalWorkingHours = attendances.reduce((sum, att) => sum + (att.workingHours || 0), 0);
-      
-      // HTML 테이블 생성
-      const attendanceTable = attendances.map(att => `
-        <tr>
-          <td>${att.date.toLocaleDateString('ja-JP')}</td>
-          <td>${att.checkIn?.toLocaleTimeString('ja-JP') || '-'}</td>
-          <td>${att.checkOut?.toLocaleTimeString('ja-JP') || '-'}</td>
-          <td>
-            ${att.lunchStart ? att.lunchStart.toLocaleTimeString('ja-JP') : '-'} ～
-            ${att.lunchEnd ? att.lunchEnd.toLocaleTimeString('ja-JP') : '-'}
-          </td>
-          <td>${att.workingHours || '-'}時間</td>
-          <td>${att.status}</td>
-        </tr>
-      `).join('');
-  
-      const mailOptions = {
-        from: process.env.EMAIL_USER,
-        to: adminEmail,
-        subject: `[근태 승인 완료] ${employee.name} - ${year}년 ${month}월`,
-        html: `
-          <h2>${employee.name}님의 ${year}년 ${month}월 근태가 승인되었습니다</h2>
-          <p><strong>사원번호:</strong> ${employee.employeeId}</p>
-          <p><strong>부서:</strong> ${employee.department}</p>
-          <p><strong>총 근무 시간:</strong> ${totalWorkingHours.toFixed(1)}시간</p>
-          
-          <h3>근태 상세 내역</h3>
-          <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <thead>
-              <tr>
-                <th>日付</th>
-                <th>出勤</th>
-                <th>退勤</th>
-                <th>昼休憩</th>
-                <th>勤務時間</th>
-                <th>状態</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${attendanceTable}
-            </tbody>
-          </table>
-          
-          <p>이 메일은 시스템에서 자동으로 발송되었습니다.</p>
-        `
-      };
-  
-      await transporter.sendMail(mailOptions);
-      console.log(`근태 승인 이메일 전송 완료: ${employee.name} (${employee.employeeId})`);
-    } catch (error) {
-      console.error('근태 승인 이메일 전송 실패:', error);
-    }
-  }
 
 // デフォルト管理者アカウント作成
 async function createAdminUser() {
@@ -877,7 +807,7 @@ app.get('/leave/my-requests', requireLogin, async (req, res) => {
                                     <td>${req.days}日</td>
                                     <td class="status-${req.status}">
                                         ${req.status === 'pending' ? '待機中' : 
-                                          req.status === 'approved' ? '承認中' : 
+                                          req.status === 'approved' ? '承認済' : 
                                           req.status === 'rejected' ? '拒否' : 'キャンセル'}
                                     </td>
                                     <td>${req.createdAt.toLocaleDateString('ja-JP')}</td>
@@ -1944,10 +1874,6 @@ app.get('/admin/register-employee', requireLogin, isAdmin, (req, res) => {
                         <label for="joinDate">入社日:</label>
                         <input type="date" id="joinDate" name="joinDate" required>
                     </div>
-                    <div class="form-group">
-                        <label for="email">メールアドレス:</label>
-                        <input type="email" id="email" name="email" required>
-                    </div>                    
                     <button type="submit" class="btn">登録</button>
                 </form>
                 <a href="/dashboard" class="btn">ダッシュボードに戻る</a>
@@ -2336,25 +2262,6 @@ app.post('/admin/approve-attendance', requireLogin, isAdmin, async (req, res) =>
         approvalRequest.processedAt = new Date();
         approvalRequest.processedBy = req.session.userId;
         await approvalRequest.save();
-
-        // 승인된 근태 기록 조회
-        const approvedAttendances = await Attendance.find({
-            userId: employee.userId,
-            date: { $gte: startDate, $lte: endDate }
-        }).sort({ date: 1 });
-
-        // 현재 로그인한 관리자(승인자) 정보 조회
-        const adminUser = await User.findById(req.session.userId);
-        const adminEmployee = await Employee.findOne({ userId: adminUser._id });
-
-        // 승인 완료 이메일 전송
-        await sendApprovalEmail(
-            adminEmployee.email || process.env.ADMIN_EMAIL, // 관리자 이메일
-            employee, 
-            year, 
-            month, 
-            approvedAttendances
-        );
 
         res.json({ 
             success: true,
