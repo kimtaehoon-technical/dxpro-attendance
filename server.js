@@ -1480,6 +1480,7 @@ app.post('/update-attendance/:id', requireLogin, async (req, res) => {
 // 出勤処理
 app.post('/checkin', requireLogin, async (req, res) => {
     const moment = require('moment-timezone');
+    const now = moment().tz('Asia/Tokyo').toDate();
     try {
         const user = await User.findById(req.session.userId);
 
@@ -1638,14 +1639,22 @@ app.post('/save-attendance', requireLogin, async (req, res) => {
         const [year, month, day] = req.body.date.split('-').map(Number);
 
         // KST 기준 자정으로 날짜 고정
-        const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
-        const endOfDay = new Date(Date.UTC(year, month - 1, day + 1, 0, 0, 0));
+        const dateObj = moment.tz(`${year}-${month}-${day}`, 'Asia/Tokyo').toDate();
 
         // 해당 날짜에 이미 기록이 있는지 확인
         const existingAttendance = await Attendance.findOne({
             userId: user._id,
-            date: { $gte: startOfDay, $lt: endOfDay }
+            date: {
+                $gte: moment.tz(`${year}-${month}-${day}`, 'Asia/Tokyo').startOf('day').toDate(),
+                $lt: moment.tz(`${year}-${month}-${day}`, 'Asia/Tokyo').endOf('day').toDate()
+            }
         });
+
+        const parseTime = (timeStr) => {
+            if (!timeStr) return null;
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            return moment.tz(dateObj, 'Asia/Tokyo').set({hours, minutes, seconds: 0}).toDate();
+        };
 
         if (existingAttendance) {
             return res.send(`
@@ -1658,70 +1667,29 @@ app.post('/save-attendance', requireLogin, async (req, res) => {
             `);
         }
 
-        const checkInTime = req.body.checkIn.split(':');
-        const checkOutTime = req.body.checkOut ? req.body.checkOut.split(':') : null;
-        const lunchStartTime = req.body.lunchStart ? req.body.lunchStart.split(':') : null;
-        const lunchEndTime = req.body.lunchEnd ? req.body.lunchEnd.split(':') : null;
-
-        // 기본 근태 기록 생성 (날짜는 UTC 기준 KST 자정)
         const attendance = new Attendance({
             userId: user._id,
-            date: startOfDay,  // 이게 MongoDB에서 정렬 기준이 됨
-            notes: req.body.notes || null,  // 비고 필드 추가 (중요!)            
+            date: moment.tz(dateObj, 'Asia/Tokyo').startOf('day').toDate(),
+            checkIn: parseTime(req.body.checkIn),
+            checkOut: parseTime(req.body.checkOut),
+            lunchStart: parseTime(req.body.lunchStart),
+            lunchEnd: parseTime(req.body.lunchEnd),
+            status: req.body.status,
+            notes: req.body.notes || null
         });
 
-        // 출근 시간
-        if (req.body.checkIn) {
-            const checkInDate = new Date(startOfDay);
-            checkInDate.setUTCHours(checkInTime[0] - 9, checkInTime[1]); // UTC 변환
-            attendance.checkIn = checkInDate;
-
-            // 상태 설정
-            attendance.status = checkInDate.getUTCHours() + 9 > 9 ? '遅刻' : '正常';
-        }
-
-        // 퇴근 시간
-        if (checkOutTime) {
-            const checkOutDate = new Date(startOfDay);
-            checkOutDate.setUTCHours(checkOutTime[0] - 9, checkOutTime[1]);
-            attendance.checkOut = checkOutDate;
-        }
-
-        // 점심 시작
-        if (lunchStartTime) {
-            const lunchStartDate = new Date(startOfDay);
-            lunchStartDate.setUTCHours(lunchStartTime[0] - 9, lunchStartTime[1]);
-            attendance.lunchStart = lunchStartDate;
-        }
-
-        // 점심 종료
-        if (lunchEndTime) {
-            const lunchEndDate = new Date(startOfDay);
-            lunchEndDate.setUTCHours(lunchEndTime[0] - 9, lunchEndTime[1]);
-            attendance.lunchEnd = lunchEndDate;
-        }
-
-        // 상태 수동 설정 (우선순위 높음)
-        if (req.body.status) {
-            attendance.status = req.body.status;
-        }
-
-        // 근무 시간 계산
+        // 근무 시간 계산 (일본 시간대 기준)
         if (attendance.checkOut) {
             const totalMs = attendance.checkOut - attendance.checkIn;
             let lunchMs = 0;
-
+            
             if (attendance.lunchStart && attendance.lunchEnd) {
                 lunchMs = attendance.lunchEnd - attendance.lunchStart;
             }
-
+            
             const workingMs = totalMs - lunchMs;
             attendance.workingHours = parseFloat((workingMs / (1000 * 60 * 60)).toFixed(1));
             attendance.totalHours = parseFloat((totalMs / (1000 * 60 * 60)).toFixed(1));
-
-            if (attendance.workingHours < 8) {
-                attendance.status = '早退';
-            }
         }
 
         await attendance.save();
@@ -2130,12 +2098,12 @@ app.get('/admin/monthly-attendance', requireLogin, isAdmin, async (req, res) => 
                                 <tbody>
                                     ${data.attendances.map(att => `
                                         <tr>
-                                            <td>${att.date.toLocaleDateString('ja-JP')}</td>
-                                            <td>${att.checkIn?.toLocaleTimeString('ja-JP') || '-'}</td>
-                                            <td>${att.checkOut?.toLocaleTimeString('ja-JP') || '-'}</td>
+                                            <td>${moment(att.date).tz('Asia/Tokyo').format('YYYY/MM/DD')}</td>
+                                            <td>${att.checkIn ? moment(att.checkIn).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
+                                            <td>${att.checkOut ? moment(att.checkOut).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
                                             <td>
-                                                ${att.lunchStart ? att.lunchStart.toLocaleTimeString('ja-JP') : '-'} ～
-                                                ${att.lunchEnd ? att.lunchEnd.toLocaleTimeString('ja-JP') : '-'}
+                                                ${att.lunchStart ? moment(att.lunchStart).tz('Asia/Tokyo').format('HH:mm:ss') : '-'} ～
+                                                ${att.lunchEnd ? moment(att.lunchEnd).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}
                                             </td>
                                             <td>${att.workingHours || '-'}時間</td>
                                             <td>${att.status}</td>
@@ -2389,12 +2357,12 @@ app.get('/admin/print-attendance', requireLogin, isAdmin, async (req, res) => {
                                 
                                 return `
                                 <tr>
-                                    <td>${att.date.toLocaleDateString('ja-JP')}</td>
-                                    <td>${att.checkIn?.toLocaleTimeString('ja-JP') || '-'}</td>
-                                    <td>${att.checkOut?.toLocaleTimeString('ja-JP') || '-'}</td>
+                                    <td>${moment(att.date).tz('Asia/Tokyo').format('YYYY/MM/DD')}</td>
+                                    <td>${att.checkIn ? moment(att.checkIn).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
+                                    <td>${att.checkOut ? moment(att.checkOut).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
                                     <td>
-                                        ${att.lunchStart ? att.lunchStart.toLocaleTimeString('ja-JP') : '-'} ～
-                                        ${att.lunchEnd ? att.lunchEnd.toLocaleTimeString('ja-JP') : '-'}
+                                        ${att.lunchStart ? moment(att.lunchStart).tz('Asia/Tokyo').format('HH:mm:ss') : '-'} ～
+                                        ${att.lunchEnd ? moment(att.lunchEnd).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}
                                     </td>
                                     <td>${att.workingHours || '-'}時間</td>
                                     <td class="status-cell ${statusClass}">${att.status}</td>
@@ -2594,12 +2562,12 @@ app.get('/my-monthly-attendance', requireLogin, async (req, res) => {
                         <tbody>
                             ${attendances.map(att => `
                                 <tr>
-                                    <td>${att.date.toLocaleDateString('ja-JP')}</td>
-                                    <td>${att.checkIn?.toLocaleTimeString('ja-JP') || '-'}</td>
-                                    <td>${att.checkOut?.toLocaleTimeString('ja-JP') || '-'}</td>
+                                    <td>${moment(att.date).tz('Asia/Tokyo').format('YYYY/MM/DD')}</td>
+                                    <td>${att.checkIn ? moment(att.checkIn).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
+                                    <td>${att.checkOut ? moment(att.checkOut).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
                                     <td>
-                                        ${att.lunchStart ? att.lunchStart.toLocaleTimeString('ja-JP') : '-'} ～
-                                        ${att.lunchEnd ? att.lunchEnd.toLocaleTimeString('ja-JP') : '-'}
+                                        ${att.lunchStart ? moment(att.lunchStart).tz('Asia/Tokyo').format('HH:mm:ss') : '-'} ～
+                                        ${att.lunchEnd ? moment(att.lunchEnd).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}
                                     </td>
                                     <td>${att.workingHours || '-'}時間</td>
                                     <td>${att.status} ${att.isConfirmed ? '<span class="confirmed-badge">承認済み</span>' : ''}</td>
@@ -3032,11 +3000,12 @@ app.get('/admin/view-attendance/:userId/:year/:month', requireLogin, isAdmin, as
                         <tbody>
                             ${attendances.map(att => `
                                 <tr>
-                                    <td>${att.date.toLocaleDateString('ja-JP')}</td>
-                                    <td>${att.checkIn?.toLocaleTimeString('ja-JP') || '-'}</td>
-                                    <td>${att.checkOut?.toLocaleTimeString('ja-JP') || '-'}</td>
+
+                                    <td>${moment(att.date).tz('Asia/Tokyo').format('YYYY/MM/DD')}</td>
+                                    <td>${att.checkIn ? moment(att.checkIn).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
+                                    <td>${att.checkOut ? moment(att.checkOut).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
                                     <td>${att.workingHours || '-'}時間</td>
-                                    <td>${att.status}</td>
+                                    <td>${att.status}</td>                                    
                                 </tr>
                             `).join('')}
                             ${attendances.length === 0 ? `
@@ -3163,12 +3132,12 @@ app.get('/print-attendance', requireLogin, async (req, res) => {
                         <tbody>
                             ${attendances.map(att => `
                                 <tr>
-                                    <td>${att.date.toLocaleDateString('ja-JP')}</td>
-                                    <td>${att.checkIn?.toLocaleTimeString('ja-JP') || '-'}</td>
-                                    <td>${att.checkOut?.toLocaleTimeString('ja-JP') || '-'}</td>
+                                    <td>${moment(att.date).tz('Asia/Tokyo').format('YYYY/MM/DD')}</td>
+                                    <td>${att.checkIn ? moment(att.checkIn).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
+                                    <td>${att.checkOut ? moment(att.checkOut).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
                                     <td>
-                                        ${att.lunchStart ? att.lunchStart.toLocaleTimeString('ja-JP') : '-'} ～
-                                        ${att.lunchEnd ? att.lunchEnd.toLocaleTimeString('ja-JP') : '-'}
+                                        ${att.lunchStart ? moment(att.lunchStart).tz('Asia/Tokyo').format('HH:mm:ss') : '-'} ～
+                                        ${att.lunchEnd ? moment(att.lunchEnd).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}
                                     </td>
                                     <td>${att.workingHours || '-'}時間</td>
                                     <td>${att.status}</td>
