@@ -1215,7 +1215,7 @@ app.get('/dashboard', requireLogin, async (req, res) => {
 // 日時フォーマット関数
 function formatDateTimeForInput(date) {
     if (!date) return '';
-    const jst = new Date(dateObj.getTime() + (9 * 60 * 60 * 1000)); // UTC + 9h
+    const jst = new Date(date.getTime() + (9 * 60 * 60 * 1000)); // UTC + 9h
     const hours = d.getHours().toString().padStart(2, '0');
     const minutes = d.getMinutes().toString().padStart(2, '0');
     return `${hours}:${minutes}`;
