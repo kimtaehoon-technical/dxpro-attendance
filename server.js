@@ -1271,6 +1271,7 @@ app.post('/update-attendance/:id', requireLogin, async (req, res) => {
         res.redirect('/dashboard');
     }
 });
+
 // 勤怠編集ページ
 app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
     try {
@@ -1616,27 +1617,33 @@ app.post('/save-attendance', requireLogin, async (req, res) => {
 
 // 出勤処理
 app.post('/checkin', requireLogin, async (req, res) => {
-    const moment = require('moment-timezone');
-    const now = moment().tz('Asia/Tokyo').toDate();
     try {
         const user = await User.findById(req.session.userId);
-
-        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
-        const tomorrow = moment(today).add(1, 'day').toDate();
         
+        // 현재 일본 시간대 기준 날짜와 시간
+        const now = moment().tz('Asia/Tokyo');
+        const normalizedDate = now.format('YYYY-MM-DD');
+        
+        // 오늘 날짜 범위 확인 (문자열 비교로 변경)
         const existingRecord = await Attendance.findOne({
             userId: user._id,
-            date: { $gte: today, $lt: tomorrow }
+            date: normalizedDate
         });
 
         if (existingRecord) return res.redirect('/dashboard');
         
-        const now = moment().tz('Asia/Tokyo').toDate();
+        // 시간 파싱 함수
+        const parseTime = (timeStr) => {
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            return new Date(`${normalizedDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00+09:00`);
+        };
+
+        const currentTime = now.format('HH:mm');
         const attendance = new Attendance({
             userId: user._id,
-            date: today,
-            checkIn: now,
-            status: now.getHours() > 9 ? '遅刻' : '正常'
+            date: normalizedDate, // 문자열로 저장
+            checkIn: parseTime(currentTime),
+            status: now.hours() > 9 ? '遅刻' : '正常'
         });
         
         await attendance.save();
@@ -1645,29 +1652,36 @@ app.post('/checkin', requireLogin, async (req, res) => {
         console.error(error);
         res.status(500).send('出勤処理中にエラーが発生しました');
     }
-}); 
+});
 
 // 昼休み開始処理
 app.post('/start-lunch', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
-
-        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
-        const tomorrow = moment(today).add(1, 'day').toDate();
-
+        const now = moment().tz('Asia/Tokyo');
+        const normalizedDate = now.format('YYYY-MM-DD');
+        
         const attendance = await Attendance.findOne({
             userId: user._id,
-            date: { $gte: today, $lt: tomorrow }
+            date: normalizedDate
         });
 
-        if (!attendance) return res.redirect('/dashboard');
+        if (!attendance || !attendance.checkIn) {
+            return res.redirect('/dashboard');
+        }
 
-        attendance.lunchStart = moment().tz('Asia/Tokyo').toDate();
+        // 시간 파싱 함수
+        const parseTime = (timeStr) => {
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            return new Date(`${normalizedDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00+09:00`);
+        };
+
+        attendance.lunchStart = parseTime(now.format('HH:mm'));
         await attendance.save();
         res.redirect('/dashboard');
     } catch (error) {
         console.error(error);
-        res.status(500).send('昼休み開始処理中にエラーが発生しました');
+        res.redirect('/dashboard');
     }
 });
 
@@ -1675,23 +1689,30 @@ app.post('/start-lunch', requireLogin, async (req, res) => {
 app.post('/end-lunch', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
-
-        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
-        const tomorrow = moment(today).add(1, 'day').toDate();
-
+        const now = moment().tz('Asia/Tokyo');
+        const normalizedDate = now.format('YYYY-MM-DD');
+        
         const attendance = await Attendance.findOne({
             userId: user._id,
-            date: { $gte: today, $lt: tomorrow }
+            date: normalizedDate
         });
 
-        if (!attendance || !attendance.lunchStart) return res.redirect('/dashboard');
+        if (!attendance || !attendance.lunchStart) {
+            return res.redirect('/dashboard');
+        }
 
-        attendance.lunchEnd = moment().tz('Asia/Tokyo').toDate();
+        // 시간 파싱 함수
+        const parseTime = (timeStr) => {
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            return new Date(`${normalizedDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00+09:00`);
+        };
+
+        attendance.lunchEnd = parseTime(now.format('HH:mm'));
         await attendance.save();
         res.redirect('/dashboard');
     } catch (error) {
         console.error(error);
-        res.status(500).send('昼休み終了処理中にエラーが発生しました');
+        res.redirect('/dashboard');
     }
 });
 
@@ -1699,39 +1720,48 @@ app.post('/end-lunch', requireLogin, async (req, res) => {
 app.post('/checkout', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
-
-        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
-        const tomorrow = moment(today).add(1, 'day').toDate();
-
+        const now = moment().tz('Asia/Tokyo');
+        const normalizedDate = now.format('YYYY-MM-DD');
+        
         const attendance = await Attendance.findOne({
             userId: user._id,
-            date: { $gte: today, $lt: tomorrow }
+            date: normalizedDate
         });
 
-        if (!attendance) return res.redirect('/dashboard');
-
-        const now = moment().tz('Asia/Tokyo').toDate();
-        attendance.checkOut = now;
-
-        // 昼休み時間がある場合の計算
-        if (attendance.lunchStart && attendance.lunchEnd) {
-            const lunchDuration = (attendance.lunchEnd - attendance.lunchStart) / (1000 * 60 * 60);
-            const totalDuration = (now - attendance.checkIn) / (1000 * 60 * 60);
-            attendance.workingHours = Math.round((totalDuration - lunchDuration) * 10) / 10;
-            attendance.totalHours = Math.round(totalDuration * 10) / 10;
-        } else {
-            const totalDuration = (now - attendance.checkIn) / (1000 * 60 * 60);
-            attendance.workingHours = Math.round(totalDuration * 10) / 10;
-            attendance.totalHours = attendance.workingHours;
+        if (!attendance || !attendance.checkIn) {
+            return res.redirect('/dashboard');
         }
 
-        if (attendance.workingHours < 8) attendance.status = '早退';
+        // 시간 파싱 함수
+        const parseTime = (timeStr) => {
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            return new Date(`${normalizedDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00+09:00`);
+        };
 
+        attendance.checkOut = parseTime(now.format('HH:mm'));
+        
+        // 근무 시간 계산
+        const totalMs = attendance.checkOut - attendance.checkIn;
+        let lunchMs = 0;
+        
+        if (attendance.lunchStart && attendance.lunchEnd) {
+            lunchMs = attendance.lunchEnd - attendance.lunchStart;
+        }
+        
+        const workingMs = totalMs - lunchMs;
+        attendance.workingHours = parseFloat((workingMs / (1000 * 60 * 60)).toFixed(1));
+        attendance.totalHours = parseFloat((totalMs / (1000 * 60 * 60)).toFixed(1));
+        
+        // 상태 업데이트 (조기 퇴근 여부 확인)
+        if (now.hours() < 17) { // 17시 이전 퇴근 시 조기 퇴근으로 표시
+            attendance.status = '早退';
+        }
+        
         await attendance.save();
         res.redirect('/dashboard');
     } catch (error) {
         console.error(error);
-        res.status(500).send('退勤処理中にエラーが発生しました');
+        res.redirect('/dashboard');
     }
 });
 
