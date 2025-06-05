@@ -1632,17 +1632,13 @@ app.post('/checkin', requireLogin, async (req, res) => {
 
         if (existingRecord) return res.redirect('/dashboard');
         
-        // 시간 파싱 함수
-        const parseTime = (timeStr) => {
-            const [hours, minutes] = timeStr.split(':').map(Number);
-            return new Date(`${normalizedDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00+09:00`);
-        };
+
 
         const currentTime = now.format('HH:mm');
         const attendance = new Attendance({
             userId: user._id,
             date: normalizedDate, // 문자열로 저장
-            checkIn: parseTime(currentTime),
+            checkIn: currentTime,
             status: now.hours() > 9 ? '遅刻' : '正常'
         });
         
