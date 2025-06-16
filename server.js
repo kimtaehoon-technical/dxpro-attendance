@@ -3078,7 +3078,7 @@ app.get('/admin/approve-request/:id', requireLogin, isAdmin, async (req, res) =>
             // 6. 이메일 발송
             const mailOptions = {
                 from: process.env.EMAIL_USER || 'info@dxpro-sol.com',
-                to: 'xogns00089@gmail.com',
+                to: 'nakamura-s-office@bg8.so-net.ne.jp, msatoh@bg8.so-net.ne.jp',
                 cc: 'kim_taehoon@dxpro-sol.com',
                 subject: `【勤怠報告】${employee.name}様の${request.year}年${request.month}月分勤怠情報のご報告`,
                 text:
