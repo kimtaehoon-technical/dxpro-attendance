@@ -4,7 +4,50 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const app = express();
+const nodemailer = require('nodemailer');
+const pdf = require('html-pdf');
+const fs = require('fs');
 
+  const transporter = nodemailer.createTransport({
+    host: 'mail1022.onamae.ne.jp',
+    port: 465, // SSL接続あり
+    secure: true, // ポート465ならtrue
+    auth: {
+      user: 'info@dxpro-sol.com',
+      pass: 'dxpro-sol2024'
+    }
+  });
+
+  // テスト送信
+transporter.sendMail({
+    from: '"DXPRO SOL" <info@dxpro-sol.com>',
+    to: 'xogns00089@gmail.com',
+    subject: '【勤怠】メール送信確認について',
+    text: '税理士宛にメール送信が完了しました。'
+  }, (error, info) => {
+    if (error) {
+      return console.error('メール送信エラー:', error);
+    }
+    console.log('送信成功:', info.response);
+  });
+
+  transporter.verify((error, success) => {
+    if (error) {
+      console.error('SMTP 接続エラー:', error);
+    } else {
+      console.log('SMTP サーバー接続 OK');
+    }
+  });
+
+  const generatePdf = (html, options = {}) => {
+    return new Promise((resolve, reject) => {
+      pdf.create(html, options).toBuffer((err, buffer) => {
+        if (err) return reject(err);
+        resolve(buffer);
+      });
+    });
+  };
+  
 // MongoDB接続
 const MONGODB_URI = 'mongodb+srv://dxprosol:kim650323@dxpro.ealx5.mongodb.net/attendance-system?retryWrites=true&w=majority';
 mongoose.connect(MONGODB_URI)
@@ -1212,66 +1255,6 @@ app.get('/dashboard', requireLogin, async (req, res) => {
     }
 });
 
-// 日時フォーマット関数
-function formatDateTimeForInput(date) {
-    if (!date) return '';
-    const jst = new Date(date.getTime() + (9 * 60 * 60 * 1000)); // UTC + 9h
-    const hours = d.getHours().toString().padStart(2, '0');
-    const minutes = d.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
-}
-
-// 勤怠更新処理 - 修正版
-app.post('/update-attendance/:id', requireLogin, async (req, res) => {
-    try {
-        const attendance = await Attendance.findById(req.params.id);
-        if (!attendance) return res.redirect('/dashboard');
-        
-        // 확정된 근태는 수정 불가
-        if (attendance.isConfirmed) {
-            return res.status(403).send('承認済みの勤怠記録は編集できません');
-        }
-
-        const normalizedDate = moment(req.body.date, 'YYYY-MM-DD').format('YYYY-MM-DD');
-        const parseTime = (timeStr) => {
-            if (!timeStr) return null;
-            const [hours, minutes] = timeStr.split(':').map(Number);
-            return new Date(`${normalizedDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00+09:00`);
-        };
-
-        // 各時刻を新しい日付に設定
-        attendance.date = normalizedDate; // 문자열로 저장
-        attendance.checkIn = parseTime(req.body.checkIn);
-        attendance.checkOut = parseTime(req.body.checkOut);
-        attendance.lunchStart = parseTime(req.body.lunchStart);
-        attendance.lunchEnd = parseTime(req.body.lunchEnd);
-        attendance.status = req.body.status;
-        attendance.notes = req.body.notes || null;
-        attendance.status = req.body.status;
-        
-        // 勤務時間再計算
-        if (attendance.checkOut) {
-            const totalMs = attendance.checkOut - attendance.checkIn;
-            let lunchMs = 0;
-            
-            if (attendance.lunchStart && attendance.lunchEnd) {
-                lunchMs = attendance.lunchEnd - attendance.lunchStart;
-            }
-            
-            const workingMs = totalMs - lunchMs;
-            
-            attendance.workingHours = parseFloat((workingMs / (1000 * 60 * 60)).toFixed(1));
-            attendance.totalHours = parseFloat((totalMs / (1000 * 60 * 60)).toFixed(1));
-        }
-        
-        await attendance.save();        
-        res.redirect('/dashboard');
-    } catch (error) {
-        console.error('勤怠更新エラー:', error);
-        res.redirect('/dashboard');
-    }
-});
-
 // 勤怠編集ページ
 app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
     try {
@@ -1298,6 +1281,11 @@ app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
                 </div>
             `);
         }
+
+        // 9시간을 추가한 날짜 계산
+        const adjustedDate = new Date(attendance.date);
+        adjustedDate.setHours(adjustedDate.getHours() + 9);
+        const dateValue = adjustedDate.toISOString().split('T')[0];
 
         res.send(`
             <!DOCTYPE html>
@@ -1333,13 +1321,13 @@ app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
                         flatpickr("#lunchEnd", timeConfig);
                         flatpickr("#checkOut", timeConfig);
 
-                        // クライアントサイドバリデーション ★ここに追加★
+                        // クライアントサイドバリデーション
                         document.querySelector('form').addEventListener('submit', function(e) {
                             const date = document.getElementById('date').value;
-                            const checkIn = document.getElementById('checkIn').value;
-                            const checkOut = document.getElementById('checkOut').value;
-                            const lunchStart = document.getElementById('lunchStart').value;
-                            const lunchEnd = document.getElementById('lunchEnd').value;
+                            const checkIn = document.getElementById('checkIn").value;
+                            const checkOut = document.getElementById('checkOut").value;
+                            const lunchStart = document.getElementById('lunchStart").value;
+                            const lunchEnd = document.getElementById('lunchEnd").value;
                             
                             // 必須チェック
                             if (!date || !checkIn) {
@@ -1380,7 +1368,7 @@ app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
                         <div class="form-group">
                             <label for="date">日付:</label>
                             <input type="date" id="date" name="date" 
-                                value="${attendance.date.toISOString().split('T')[0]}" required>
+                                value="${dateValue}" required>
                         </div>
                         <div class="form-group">
                             <label for="checkIn">出勤時間:</label>
@@ -1425,6 +1413,148 @@ app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
     } catch (error) {
         console.error(error);
         res.redirect('/dashboard');
+    }
+});
+
+// 日時フォーマット関数
+function formatDateTimeForInput(date) {
+    if (!date) return '';
+    const d = new Date(date);
+    const hours = d.getHours().toString().padStart(2, '0');
+    const minutes = d.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+}
+
+// 勤怠更新処理 - 修正版
+app.post('/update-attendance/:id', requireLogin, async (req, res) => {
+    try {
+        const attendance = await Attendance.findById(req.params.id);
+        if (!attendance) return res.redirect('/dashboard');
+        
+        // 확정된 근태는 수정 불가
+        if (attendance.isConfirmed) {
+            return res.status(403).send('承認済みの勤怠記録は編集できません');
+        }
+        
+        // 日付と時間を正しく結合
+        const dateParts = req.body.date.split('-');
+        const newDate = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2]));
+        const checkInTime = req.body.checkIn.split(':');
+        const checkOutTime = req.body.checkOut ? req.body.checkOut.split(':') : null;
+        const lunchStartTime = req.body.lunchStart ? req.body.lunchStart.split(':') : null;
+        const lunchEndTime = req.body.lunchEnd ? req.body.lunchEnd.split(':') : null;
+
+        // 日付を更新 (時間部分は保持)
+        newDate.setHours(0, 0, 0, 0);
+
+        const buildDateTime = (dateStr, timeStr) => {
+            if (!dateStr || !timeStr) return null;
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const [h, min] = timeStr.split(':').map(Number);
+            return new Date(y, m - 1, d, h, min, 0);
+        };
+
+        // 各時刻を新しい日付に設定
+        attendance.date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]); // 날짜 필드는 00:00 고정
+        attendance.checkIn = buildDateTime(req.body.date, req.body.checkIn);
+        attendance.checkOut = buildDateTime(req.body.date, req.body.checkOut);
+        attendance.lunchStart = buildDateTime(req.body.date, req.body.lunchStart);
+        attendance.lunchEnd = buildDateTime(req.body.date, req.body.lunchEnd);
+        attendance.status = req.body.status;
+        attendance.notes = req.body.notes || null;
+
+        if (req.body.checkIn) {
+            const checkInDate = new Date(newDate);
+            checkInDate.setHours(checkInTime[0], checkInTime[1]);
+            attendance.checkIn = checkInDate;
+        }
+
+        if (req.body.checkOut && checkOutTime) {
+            const checkOutDate = new Date(newDate);
+            checkOutDate.setHours(checkOutTime[0], checkOutTime[1]);
+            attendance.checkOut = checkOutDate;
+        }
+
+        if (req.body.lunchStart && lunchStartTime) {
+            const lunchStartDate = new Date(newDate);
+            lunchStartDate.setHours(lunchStartTime[0], lunchStartTime[1]);
+            attendance.lunchStart = lunchStartDate;
+        }
+
+        if (req.body.lunchEnd && lunchEndTime) {
+            const lunchEndDate = new Date(newDate);
+            lunchEndDate.setHours(lunchEndTime[0], lunchEndTime[1]);
+            attendance.lunchEnd = lunchEndDate;
+        }
+
+        attendance.status = req.body.status;
+        
+        // 勤務時間再計算
+        if (attendance.checkOut) {
+            const totalMs = attendance.checkOut - attendance.checkIn;
+            let lunchMs = 0;
+            
+            if (attendance.lunchStart && attendance.lunchEnd) {
+                lunchMs = attendance.lunchEnd - attendance.lunchStart;
+            }
+            
+            const workingMs = totalMs - lunchMs;
+            
+            attendance.workingHours = parseFloat((workingMs / (1000 * 60 * 60)).toFixed(1));
+            attendance.totalHours = parseFloat((totalMs / (1000 * 60 * 60)).toFixed(1));
+        }
+        
+        await attendance.save();
+        
+        // 更新後のデータを確認
+        console.log('更新後の勤怠データ:', {
+            date: attendance.date,
+            checkIn: attendance.checkIn,
+            checkOut: attendance.checkOut,
+            lunchStart: attendance.lunchStart,
+            lunchEnd: attendance.lunchEnd,
+            workingHours: attendance.workingHours,
+            status: attendance.status
+        });
+        
+        res.redirect('/dashboard');
+    } catch (error) {
+        console.error('勤怠更新エラー:', error);
+        res.redirect('/dashboard');
+    }
+});
+
+
+// 出勤処理
+app.post('/checkin', requireLogin, async (req, res) => {
+    const moment = require('moment-timezone');
+    const now = moment().tz('Asia/Tokyo').toDate();
+    try {
+        const user = await User.findById(req.session.userId);
+
+        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
+        const tomorrow = moment(today).add(1, 'day').toDate();
+        
+        const existingRecord = await Attendance.findOne({
+            userId: user._id,
+            date: { $gte: today, $lt: tomorrow }
+        });
+
+        if (existingRecord) return res.redirect('/dashboard');
+        
+        const now = moment().tz('Asia/Tokyo').toDate();
+        const attendance = new Attendance({
+            userId: user._id,
+            date: today,
+            checkIn: now,
+            status: now.getHours() > 9 ? '遅刻' : '正常'
+        });
+        
+        await attendance.save();
+        res.redirect('/dashboard');
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('出勤処理中にエラーが発生しました');
     }
 });
 
@@ -1553,100 +1683,68 @@ app.get('/add-attendance', requireLogin, (req, res) => {
 
 app.post('/save-attendance', requireLogin, async (req, res) => {
     try {
-      const user = await User.findById(req.session.userId);
-      // req.body.date는 "YYYY-MM-DD" 형식의 문자열로 전달됨
-      const { date, checkIn, checkOut, lunchStart, lunchEnd, status, notes } = req.body;
-      
-      // Tokyo 시간 기준으로 입력날짜를 표준화 (문자열로)
-      const normalizedDate = moment(date, 'YYYY-MM-DD').format('YYYY-MM-DD');
-  
-      // 기존에 같은 날짜의 기록이 있는지 문자열 비교로 확인합니다.
-      const existingAttendance = await Attendance.findOne({
-        userId: user._id,
-        date: normalizedDate // 문자열 비교
-      });
-  
-      // time 문자열(HH:MM)을 Tokyo 날짜와 결합하여 Date 객체로 변환하는 함수
-      const parseTime = (timeStr) => {
-        if (!timeStr) return null;
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        return new Date(`${normalizedDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00+09:00`);
-    };
-
-    if (existingAttendance) {
-        return res.send(`
-          <div class="container">
-              <h2>エラー</h2>
-              <p>選択した日付には既に勤怠記録が存在します</p>
-              <a href="/edit-attendance/${existingAttendance._id}" class="btn">編集ページへ</a>
-              <a href="/dashboard" class="btn">ダッシュボードに戻る</a>
-          </div>
-        `);
-      }
-  
-      const attendance = new Attendance({
-        userId: user._id,
-        date: normalizedDate, // 문자열로 저장 (스키마의 date 타입이 String 이어야 함)
-        checkIn: parseTime(checkIn),
-        checkOut: parseTime(checkOut),
-        lunchStart: parseTime(lunchStart),
-        lunchEnd: parseTime(lunchEnd),
-        status: status,
-        notes: notes || null
-      });
-  
-      // 근무 시간 계산 (Tokyo 시간대 기준)
-      if (attendance.checkOut) {
-        const totalMs = attendance.checkOut - attendance.checkIn;
-        let lunchMs = 0;
-        if (attendance.lunchStart && attendance.lunchEnd) {
-          lunchMs = attendance.lunchEnd - attendance.lunchStart;
-        }
-        const workingMs = totalMs - lunchMs;
-        attendance.workingHours = parseFloat((workingMs / (1000 * 60 * 60)).toFixed(1));
-        attendance.totalHours = parseFloat((totalMs / (1000 * 60 * 60)).toFixed(1));
-      }
-  
-      await attendance.save();
-      res.redirect('/dashboard');
-    } catch (error) {
-      console.error('打刻保存エラー:', error);
-      res.status(500).send('打刻保存中にエラーが発生しました');
-    }
-});
-
-// 出勤処理
-app.post('/checkin', requireLogin, async (req, res) => {
-    try {
         const user = await User.findById(req.session.userId);
-        
-        // 현재 일본 시간대 기준 날짜와 시간
-        const now = moment().tz('Asia/Tokyo');
-        const normalizedDate = now.format('YYYY-MM-DD');
-        
-        // 오늘 날짜 범위 확인 (문자열 비교로 변경)
-        const existingRecord = await Attendance.findOne({
+        const [year, month, day] = req.body.date.split('-').map(Number);
+
+        // KST 기준 자정으로 날짜 고정
+        const dateObj = moment.tz(`${year}-${month}-${day}`, 'Asia/Tokyo').toDate();
+
+        // 해당 날짜에 이미 기록이 있는지 확인
+        const existingAttendance = await Attendance.findOne({
             userId: user._id,
-            date: normalizedDate
+            date: {
+                $gte: moment.tz(`${year}-${month}-${day}`, 'Asia/Tokyo').startOf('day').toDate(),
+                $lt: moment.tz(`${year}-${month}-${day}`, 'Asia/Tokyo').endOf('day').toDate()
+            }
         });
 
-        if (existingRecord) return res.redirect('/dashboard');
-        
+        const parseTime = (timeStr) => {
+            if (!timeStr) return null;
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            return moment.tz(dateObj, 'Asia/Tokyo').set({hours, minutes, seconds: 0}).toDate();
+        };
 
+        if (existingAttendance) {
+            return res.send(`
+                <div class="container">
+                    <h2>エラー</h2>
+                    <p>選択した日付には既に勤怠記録が存在します</p>
+                    <a href="/edit-attendance/${existingAttendance._id}" class="btn">編集ページへ</a>
+                    <a href="/dashboard" class="btn">ダッシュボードに戻る</a>
+                </div>
+            `);
+        }
 
-        const currentTime = now.format('HH:mm');
         const attendance = new Attendance({
             userId: user._id,
-            date: normalizedDate, // 문자열로 저장
-            checkIn: currentTime,
-            status: now.hours() > 9 ? '遅刻' : '正常'
+            date: moment.tz(dateObj, 'Asia/Tokyo').startOf('day').toDate(),
+            checkIn: parseTime(req.body.checkIn),
+            checkOut: parseTime(req.body.checkOut),
+            lunchStart: parseTime(req.body.lunchStart),
+            lunchEnd: parseTime(req.body.lunchEnd),
+            status: req.body.status,
+            notes: req.body.notes || null
         });
-        
+
+        // 근무 시간 계산 (일본 시간대 기준)
+        if (attendance.checkOut) {
+            const totalMs = attendance.checkOut - attendance.checkIn;
+            let lunchMs = 0;
+            
+            if (attendance.lunchStart && attendance.lunchEnd) {
+                lunchMs = attendance.lunchEnd - attendance.lunchStart;
+            }
+            
+            const workingMs = totalMs - lunchMs;
+            attendance.workingHours = parseFloat((workingMs / (1000 * 60 * 60)).toFixed(1));
+            attendance.totalHours = parseFloat((totalMs / (1000 * 60 * 60)).toFixed(1));
+        }
+
         await attendance.save();
         res.redirect('/dashboard');
     } catch (error) {
-        console.error(error);
-        res.status(500).send('出勤処理中にエラーが発生しました');
+        console.error('打刻保存エラー:', error);
+        res.status(500).send('打刻保存中にエラーが発生しました');
     }
 });
 
@@ -1654,30 +1752,23 @@ app.post('/checkin', requireLogin, async (req, res) => {
 app.post('/start-lunch', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
-        const now = moment().tz('Asia/Tokyo');
-        const normalizedDate = now.format('YYYY-MM-DD');
-        
+
+        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
+        const tomorrow = moment(today).add(1, 'day').toDate();
+
         const attendance = await Attendance.findOne({
             userId: user._id,
-            date: normalizedDate
+            date: { $gte: today, $lt: tomorrow }
         });
 
-        if (!attendance || !attendance.checkIn) {
-            return res.redirect('/dashboard');
-        }
+        if (!attendance) return res.redirect('/dashboard');
 
-        // 시간 파싱 함수
-        const parseTime = (timeStr) => {
-            const [hours, minutes] = timeStr.split(':').map(Number);
-            return new Date(`${normalizedDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00+09:00`);
-        };
-
-        attendance.lunchStart = parseTime(now.format('HH:mm'));
+        attendance.lunchStart = moment().tz('Asia/Tokyo').toDate();
         await attendance.save();
         res.redirect('/dashboard');
     } catch (error) {
         console.error(error);
-        res.redirect('/dashboard');
+        res.status(500).send('昼休み開始処理中にエラーが発生しました');
     }
 });
 
@@ -1685,30 +1776,23 @@ app.post('/start-lunch', requireLogin, async (req, res) => {
 app.post('/end-lunch', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
-        const now = moment().tz('Asia/Tokyo');
-        const normalizedDate = now.format('YYYY-MM-DD');
-        
+
+        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
+        const tomorrow = moment(today).add(1, 'day').toDate();
+
         const attendance = await Attendance.findOne({
             userId: user._id,
-            date: normalizedDate
+            date: { $gte: today, $lt: tomorrow }
         });
 
-        if (!attendance || !attendance.lunchStart) {
-            return res.redirect('/dashboard');
-        }
+        if (!attendance || !attendance.lunchStart) return res.redirect('/dashboard');
 
-        // 시간 파싱 함수
-        const parseTime = (timeStr) => {
-            const [hours, minutes] = timeStr.split(':').map(Number);
-            return new Date(`${normalizedDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00+09:00`);
-        };
-
-        attendance.lunchEnd = parseTime(now.format('HH:mm'));
+        attendance.lunchEnd = moment().tz('Asia/Tokyo').toDate();
         await attendance.save();
         res.redirect('/dashboard');
     } catch (error) {
         console.error(error);
-        res.redirect('/dashboard');
+        res.status(500).send('昼休み終了処理中にエラーが発生しました');
     }
 });
 
@@ -1716,48 +1800,39 @@ app.post('/end-lunch', requireLogin, async (req, res) => {
 app.post('/checkout', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
-        const now = moment().tz('Asia/Tokyo');
-        const normalizedDate = now.format('YYYY-MM-DD');
-        
+
+        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
+        const tomorrow = moment(today).add(1, 'day').toDate();
+
         const attendance = await Attendance.findOne({
             userId: user._id,
-            date: normalizedDate
+            date: { $gte: today, $lt: tomorrow }
         });
 
-        if (!attendance || !attendance.checkIn) {
-            return res.redirect('/dashboard');
-        }
+        if (!attendance) return res.redirect('/dashboard');
 
-        // 시간 파싱 함수
-        const parseTime = (timeStr) => {
-            const [hours, minutes] = timeStr.split(':').map(Number);
-            return new Date(`${normalizedDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00+09:00`);
-        };
+        const now = moment().tz('Asia/Tokyo').toDate();
+        attendance.checkOut = now;
 
-        attendance.checkOut = parseTime(now.format('HH:mm'));
-        
-        // 근무 시간 계산
-        const totalMs = attendance.checkOut - attendance.checkIn;
-        let lunchMs = 0;
-        
+        // 昼休み時間がある場合の計算
         if (attendance.lunchStart && attendance.lunchEnd) {
-            lunchMs = attendance.lunchEnd - attendance.lunchStart;
+            const lunchDuration = (attendance.lunchEnd - attendance.lunchStart) / (1000 * 60 * 60);
+            const totalDuration = (now - attendance.checkIn) / (1000 * 60 * 60);
+            attendance.workingHours = Math.round((totalDuration - lunchDuration) * 10) / 10;
+            attendance.totalHours = Math.round(totalDuration * 10) / 10;
+        } else {
+            const totalDuration = (now - attendance.checkIn) / (1000 * 60 * 60);
+            attendance.workingHours = Math.round(totalDuration * 10) / 10;
+            attendance.totalHours = attendance.workingHours;
         }
-        
-        const workingMs = totalMs - lunchMs;
-        attendance.workingHours = parseFloat((workingMs / (1000 * 60 * 60)).toFixed(1));
-        attendance.totalHours = parseFloat((totalMs / (1000 * 60 * 60)).toFixed(1));
-        
-        // 상태 업데이트 (조기 퇴근 여부 확인)
-        if (now.hours() < 17) { // 17시 이전 퇴근 시 조기 퇴근으로 표시
-            attendance.status = '早退';
-        }
-        
+
+        if (attendance.workingHours < 8) attendance.status = '早退';
+
         await attendance.save();
         res.redirect('/dashboard');
     } catch (error) {
         console.error(error);
-        res.redirect('/dashboard');
+        res.status(500).send('退勤処理中にエラーが発生しました');
     }
 });
 
@@ -2352,7 +2427,9 @@ app.get('/admin/print-attendance', requireLogin, isAdmin, async (req, res) => {
                     
                     <div class="print-footer">
                         <div>作成日: ${new Date().toLocaleDateString('ja-JP')}</div>
-                        <div class="signature-line">署名</div>
+                        <div class="signature-line">
+                            <span class="approver-signature">DXPRO SOLUTIONS 金 兌訓</span>
+                        </div>
                     </div>
                     
                     <div class="no-print" style="margin-top: 30px; text-align: center;">
@@ -2900,6 +2977,192 @@ app.get('/admin/approve-request/:id', requireLogin, isAdmin, async (req, res) =>
         request.processedBy = req.session.userId;
         await request.save();
         
+        // 승인 완료 후 이메일 발송 로직 추가
+        try {
+            // 1. 사용자 정보 조회
+            const user = await User.findById(request.userId);
+            const employee = await Employee.findOne({ userId: request.userId });
+
+            // 2. 근태 데이터 조회
+            const attendances = await Attendance.find({
+                userId: request.userId,
+                date: { $gte: startDate, $lte: endDate }
+            }).sort({ date: 1 });
+
+            // 3. 총 근무 시간 계산
+            const totalWorkingHours = attendances.reduce((sum, att) => sum + (att.workingHours || 0), 0);
+
+            // 4. HTML 생성 (기존 print-attendance 페이지와 동일한 형식)
+            const html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>勤怠表印刷 - ${employee.name}</title>
+                    <meta charset="UTF-8">
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; }
+                        .print-header { text-align: center; margin-bottom: 30px; }
+                        .print-title { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
+                        .employee-info { margin-bottom: 20px; }
+                        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                        th { background-color: #f2f2f2; }
+                        .total-hours { font-weight: bold; margin-top: 20px; }
+                        .print-footer { margin-top: 50px; text-align: right; }
+                        .signature-line { display: inline-block; width: 200px; border-top: 1px solid #000; margin-top: 70px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="print-header">
+                        <div class="print-title">月別勤怠状況表</div>
+                        <div>${request.year}年 ${request.month}月</div>
+                    </div>
+                    
+                    <div class="employee-info">
+                        <div><strong>氏名:</strong> ${employee.name}</div>
+                        <div><strong>社員番号:</strong> ${employee.employeeId}</div>
+                        <div><strong>部署:</strong> ${employee.department}</div>
+                        <div><strong>職位:</strong> ${employee.position}</div>
+                    </div>
+                    
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>日付</th>
+                                <th>出勤時間</th>
+                                <th>退勤時間</th>
+                                <th>昼休憩</th>
+                                <th>勤務時間</th>
+                                <th>状態</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${attendances.map(att => `
+                                <tr>
+                                    <td>${moment(att.date).tz('Asia/Tokyo').format('YYYY/MM/DD')}</td>
+                                    <td>${att.checkIn ? moment(att.checkIn).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
+                                    <td>${att.checkOut ? moment(att.checkOut).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
+                                    <td>
+                                        ${att.lunchStart ? moment(att.lunchStart).tz('Asia/Tokyo').format('HH:mm:ss') : '-'} ～
+                                        ${att.lunchEnd ? moment(att.lunchEnd).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}
+                                    </td>
+                                    <td>${att.workingHours || '-'}時間</td>
+                                    <td>${att.status}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    
+                    <div class="total-hours">
+                        <strong>月間総勤務時間:</strong> ${totalWorkingHours.toFixed(1)}時間
+                    </div>
+                    
+                    <div class="print-footer">
+                        <div>承認日: ${new Date().toLocaleDateString('ja-JP')}</div>
+                    </div>
+                </body>
+                </html>
+            `;
+
+            // 5. PDF 생성
+            const pdfBuffer = await generatePdf(html, {
+                format: 'A4',
+                border: {
+                    top: '20mm',
+                    right: '10mm',
+                    bottom: '20mm',
+                    left: '10mm'
+                }
+            });
+
+            // 6. 이메일 발송
+            const mailOptions = {
+                from: process.env.EMAIL_USER || 'info@dxpro-sol.com',
+                to: 'xogns00089@gmail.com',
+                cc: 'kim_taehoon@dxpro-sol.com',
+                subject: `【勤怠報告】${employee.name}様の${request.year}年${request.month}月分勤怠情報のご報告`,
+                text:
+            `佐藤公臣税理士事務所  
+            佐藤 様
+            
+            いつも大変お世話になっております。  
+            合同会社DXPRO SOLUTIONSの金です。
+            
+            このたび、${employee.name}さんの${request.year}年${request.month}月分の勤怠情報につきまして、
+            以下の通りご報告申し上げます。
+                     
+            対象期間中の出勤日数、実働時間、有給取得状況、ならびに遅刻・早退・欠勤等の記録を取りまとめたものでございます。
+            なお、日別の詳細な勤怠記録につきましては、別添ファイルにてご確認いただけますと幸いです。
+
+            お手数をおかけいたしますが、ご査収のほどよろしくお願い申し上げます。  
+            ご不明な点やご指摘等がございましたら、どうぞ遠慮なくお申し付けください。
+
+            引き続き何卒よろしくお願い申し上げます。
+            
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  
+            合同会社DXPRO SOLUTIONS  
+            ITソリューション事業部  
+            Webエンジニアグループ  
+            
+            代表取締役　金兌訓（Kim Taehoon）  
+            E-MAIL：kim_taehoon@dxpro-sol.com  
+            電話番号：080-7189-6997  
+            
+            https://www.dxpro-sol.com/  
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  
+            【東京本社】  
+            〒114-0014  
+            東京都北区田端4-21-14 シャンボール大和郷 402  
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            `,
+                html:
+            `<p>佐藤公臣税理士事務所<br>佐藤 様</p>
+            <p>いつも大変お世話になっております。<br>合同会社DXPRO SOLUTIONSの金です。</p>
+            <p>このたび、<strong>${employee.name}</strong>さんの${request.year}年${request.month}月分の勤怠情報につきまして、</p>
+            <p>以下の通りご報告申し上げます。</p>
+
+            <p>対象期間中の出勤日数、実働時間、有給取得状況、ならびに遅刻・早退・欠勤等の記録を取りまとめたものでございます。</p>
+            <p>なお、日別の詳細な勤怠記録につきましては、別添ファイルにてご確認いただけますと幸いです。</p>
+
+            <p>お手数をおかけいたしますが、ご査収のほどよろしくお願い申し上げます。</p>
+            <p>ご不明な点やご指摘等がございましたら、どうぞ遠慮なくお申し付けください。</p>
+
+            <p>引き続き何卒よろしくお願い申し上げます。</p>
+            
+            <hr>
+<pre style="font-family: monospace; margin: 0; padding: 0;">
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  
+合同会社DXPRO SOLUTIONS  
+ITソリューション事業部  
+Webエンジニアグループ  
+            
+代表取締役　金兌訓（Kim Taehoon）  
+E-MAIL：kim_taehoon@dxpro-sol.com  
+電話番号：080-7189-6997  
+https://www.dxpro-sol.com/  
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  
+【東京本社】  
+〒114-0014  
+東京都北区田端4-21-14 シャンボール大和郷 402  
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+</pre>
+`
+            ,
+                attachments: [{
+                    filename: `勤怠表_${employee.name}_${request.year}年${request.month}月.pdf`,
+                    content: pdfBuffer,
+                    contentType: 'application/pdf'
+                }]
+            };
+            
+
+            await transporter.sendMail(mailOptions);
+            console.log(`근태 승인 이메일 발송 완료: ${employee.name} - ${request.year}년 ${request.month}월`);
+        } catch (emailError) {
+            console.error('이메일 발송 중 오류:', emailError);
+            // 이메일 실패해도 승인은 정상 처리
+        }
+
         res.redirect('/admin/approval-requests');
     } catch (error) {
         console.error(error);
@@ -3113,7 +3376,7 @@ app.get('/print-attendance', requireLogin, async (req, res) => {
                                         ${att.lunchEnd ? moment(att.lunchEnd).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}
                                     </td>
                                     <td>${att.workingHours || '-'}時間</td>
-                                    <td>${att.status}</td>                                
+                                    <td>${att.status}</td>
                                     <td class="note-cell">${att.notes || '-'}</td>
                                 </tr>
                             `).join('')}
