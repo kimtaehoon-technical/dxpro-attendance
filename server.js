@@ -7,6 +7,7 @@ const app = express();
 const nodemailer = require('nodemailer');
 const pdf = require('html-pdf');
 const fs = require('fs');
+const moment = require('moment-timezone');
 
   const transporter = nodemailer.createTransport({
     host: 'mail1022.onamae.ne.jp',
@@ -1255,17 +1256,6 @@ app.get('/dashboard', requireLogin, async (req, res) => {
     }
 });
 
-function formatDateTimeForInput(date) {
-    if (!date) return '';
-    const d = new Date(date);
-    // JSTに変換
-    const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
-    const hours = String(jst.getHours()).padStart(2, '0');
-    const minutes = String(jst.getMinutes()).padStart(2, '0');
-    return `${hours}:${minutes}`;
-}
-
-
 // 勤怠編集ページ
 app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
     try {
@@ -1292,7 +1282,14 @@ app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
                 </div>
             `);
         }
-      
+
+        function formatDateTimeForInput(date) {
+            if (!date) return '';
+            return moment(date).tz('Asia/Tokyo').format('HH:mm');
+        }
+        
+        const dateValue = moment(attendance.date).tz('Asia/Tokyo').format('YYYY-MM-DD');
+
         res.send(`
             <!DOCTYPE html>
             <html>
@@ -1421,15 +1418,6 @@ app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
         res.redirect('/dashboard');
     }
 });
-
-// 日時フォーマット関数
-function formatDateTimeForInput(date) {
-    if (!date) return '';
-    const d = new Date(date);
-    const hours = d.getHours().toString().padStart(2, '0');
-    const minutes = d.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
-}
 
 // 勤怠更新処理 - 修正版
 app.post('/update-attendance/:id', requireLogin, async (req, res) => {
