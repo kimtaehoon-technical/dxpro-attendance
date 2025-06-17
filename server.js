@@ -150,7 +150,6 @@ const User = mongoose.model('User', UserSchema);
 const Attendance = mongoose.model('Attendance', AttendanceSchema);
 const Employee = mongoose.model('Employee', EmployeeSchema);
 
-const moment = require('moment-timezone');
 const now = moment().tz('Asia/Tokyo').toDate();
 
 // ミドルウェア設定
@@ -1519,7 +1518,6 @@ app.post('/update-attendance/:id', requireLogin, async (req, res) => {
 
 // 出勤処理
 app.post('/checkin', requireLogin, async (req, res) => {
-    const moment = require('moment-timezone');
     const now = moment().tz('Asia/Tokyo').toDate();
     try {
         const user = await User.findById(req.session.userId);
