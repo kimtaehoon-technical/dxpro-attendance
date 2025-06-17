@@ -1428,12 +1428,14 @@ app.post('/update-attendance/:id', requireLogin, async (req, res) => {
         if (attendance.isConfirmed) {
             return res.status(403).send('承認済みの勤怠記録は編集できません');
         }
-        
-        const parseTimeAsJST = (dateStr, timeStr) => {
-            if (!dateStr || !timeStr) return null;
-            return moment.tz(`${dateStr} ${timeStr}`, 'YYYY-MM-DD HH:mm', 'Asia/Tokyo').toDate();
-        };
 
+        const baseDate = moment(attendance.date).tz('Asia/Tokyo');
+        function toDateTime(base, timeStr) {
+            if (!timeStr) return null;
+            const [h, m] = timeStr.split(':').map(Number);
+            return base.clone().set({hour: h, minute: m, second: 0, millisecond: 0}).toDate();
+        }
+        
         // 日付と時間を正しく結合
         const dateParts = req.body.date.split('-');
         const newDate = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2]));
@@ -1446,13 +1448,12 @@ app.post('/update-attendance/:id', requireLogin, async (req, res) => {
         newDate.setHours(0, 0, 0, 0);
 
         // 各時刻を新しい日付に設定
-        attendance.date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
-        attendance.checkIn = parseTimeAsJST(req.body.date, req.body.checkIn);
-        attendance.checkOut = parseTimeAsJST(req.body.date, req.body.checkOut);
-        attendance.lunchStart = parseTimeAsJST(req.body.date, req.body.lunchStart);
-        attendance.lunchEnd = parseTimeAsJST(req.body.date, req.body.lunchEnd);
-        attendance.status = req.body.status;
-        attendance.notes = req.body.notes || null;
+        attendance.checkIn     = toDateTime(baseDate, req.body.checkIn);
+        attendance.checkOut    = toDateTime(baseDate, req.body.checkOut);
+        attendance.lunchStart  = toDateTime(baseDate, req.body.lunchStart);
+        attendance.lunchEnd    = toDateTime(baseDate, req.body.lunchEnd);
+        attendance.status      = req.body.status;
+        attendance.notes       = req.body.notes || null;
 
         if (req.body.checkIn) {
             const checkInDate = new Date(newDate);
