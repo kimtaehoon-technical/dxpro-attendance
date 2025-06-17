@@ -1282,10 +1282,15 @@ app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
             `);
         }
 
-        // 9시간을 추가한 날짜 계산
-        const adjustedDate = new Date(attendance.date);
-        adjustedDate.setHours(adjustedDate.getHours() + 9);
-        const dateValue = adjustedDate.toISOString().split('T')[0];
+        function formatDateTimeForInput(date) {
+            if (!date) return '';
+            const d = new Date(date);
+            // JSTに変換
+            const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+            const hours = String(jst.getHours()).padStart(2, '0');
+            const minutes = String(jst.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
 
         res.send(`
             <!DOCTYPE html>
@@ -1373,22 +1378,22 @@ app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
                         <div class="form-group">
                             <label for="checkIn">出勤時間:</label>
                             <input type="text" id="checkIn" name="checkIn" 
-                                   value="${parseTimeAsJST(attendance.checkIn)}" required>
+                                   value="${formatDateTimeForInput(attendance.checkIn)}" required>
                         </div>
                         <div class="form-group">
                             <label for="lunchStart">昼休み開始時間:</label>
                             <input type="text" id="lunchStart" name="lunchStart" 
-                                   value="${attendance.lunchStart ? parseTimeAsJST(attendance.lunchStart) : ''}">
+                                   value="${attendance.lunchStart ? formatDateTimeForInput(attendance.lunchStart) : ''}">
                         </div>
                         <div class="form-group">
                             <label for="lunchEnd">昼休み終了時間:</label>
                             <input type="text" id="lunchEnd" name="lunchEnd" 
-                                   value="${attendance.lunchEnd ? parseTimeAsJST(attendance.lunchEnd) : ''}">
+                                   value="${attendance.lunchEnd ? formatDateTimeForInput(attendance.lunchEnd) : ''}">
                         </div>
                         <div class="form-group">
                             <label for="checkOut">退勤時間:</label>
                             <input type="text" id="checkOut" name="checkOut" 
-                                   value="${attendance.checkOut ? parseTimeAsJST(attendance.checkOut) : ''}">
+                                   value="${attendance.checkOut ? formatDateTimeForInput(attendance.checkOut) : ''}">
                         </div>
                         <div class="form-group">
                             <label for="status">状態:</label>
@@ -1415,11 +1420,6 @@ app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
         res.redirect('/dashboard');
     }
 });
-
-const parseTimeAsJST = (dateStr, timeStr) => {
-    if (!dateStr || !timeStr) return null;
-    return moment.tz(`${dateStr} ${timeStr}`, 'YYYY-MM-DD HH:mm', 'Asia/Tokyo').toDate();
-};
 
 // 日時フォーマット関数
 function formatDateTimeForInput(date) {
