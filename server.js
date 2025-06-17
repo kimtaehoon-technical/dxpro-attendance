@@ -1436,6 +1436,11 @@ app.post('/update-attendance/:id', requireLogin, async (req, res) => {
             return res.status(403).send('承認済みの勤怠記録は編集できません');
         }
         
+        const parseTimeAsJST = (dateStr, timeStr) => {
+            if (!dateStr || !timeStr) return null;
+            return moment.tz(`${dateStr} ${timeStr}`, 'YYYY-MM-DD HH:mm', 'Asia/Tokyo').toDate();
+        };
+
         // 日付と時間を正しく結合
         const dateParts = req.body.date.split('-');
         const newDate = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2]));
@@ -1455,11 +1460,11 @@ app.post('/update-attendance/:id', requireLogin, async (req, res) => {
         };
 
         // 各時刻を新しい日付に設定
-        attendance.date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]); // 날짜 필드는 00:00 고정
-        attendance.checkIn = buildDateTime(req.body.date, req.body.checkIn);
-        attendance.checkOut = buildDateTime(req.body.date, req.body.checkOut);
-        attendance.lunchStart = buildDateTime(req.body.date, req.body.lunchStart);
-        attendance.lunchEnd = buildDateTime(req.body.date, req.body.lunchEnd);
+        attendance.date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+        attendance.checkIn = parseTimeAsJST(req.body.date, req.body.checkIn);
+        attendance.checkOut = parseTimeAsJST(req.body.date, req.body.checkOut);
+        attendance.lunchStart = parseTimeAsJST(req.body.date, req.body.lunchStart);
+        attendance.lunchEnd = parseTimeAsJST(req.body.date, req.body.lunchEnd);
         attendance.status = req.body.status;
         attendance.notes = req.body.notes || null;
 
