@@ -1373,22 +1373,22 @@ app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
                         <div class="form-group">
                             <label for="checkIn">出勤時間:</label>
                             <input type="text" id="checkIn" name="checkIn" 
-                                   value="${formatDateTimeForInput(attendance.checkIn)}" required>
+                                   value="${parseTimeAsJST(attendance.checkIn)}" required>
                         </div>
                         <div class="form-group">
                             <label for="lunchStart">昼休み開始時間:</label>
                             <input type="text" id="lunchStart" name="lunchStart" 
-                                   value="${attendance.lunchStart ? formatDateTimeForInput(attendance.lunchStart) : ''}">
+                                   value="${attendance.lunchStart ? parseTimeAsJST(attendance.lunchStart) : ''}">
                         </div>
                         <div class="form-group">
                             <label for="lunchEnd">昼休み終了時間:</label>
                             <input type="text" id="lunchEnd" name="lunchEnd" 
-                                   value="${attendance.lunchEnd ? formatDateTimeForInput(attendance.lunchEnd) : ''}">
+                                   value="${attendance.lunchEnd ? parseTimeAsJST(attendance.lunchEnd) : ''}">
                         </div>
                         <div class="form-group">
                             <label for="checkOut">退勤時間:</label>
                             <input type="text" id="checkOut" name="checkOut" 
-                                   value="${attendance.checkOut ? formatDateTimeForInput(attendance.checkOut) : ''}">
+                                   value="${attendance.checkOut ? parseTimeAsJST(attendance.checkOut) : ''}">
                         </div>
                         <div class="form-group">
                             <label for="status">状態:</label>
@@ -1415,6 +1415,11 @@ app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
         res.redirect('/dashboard');
     }
 });
+
+const parseTimeAsJST = (dateStr, timeStr) => {
+    if (!dateStr || !timeStr) return null;
+    return moment.tz(`${dateStr} ${timeStr}`, 'YYYY-MM-DD HH:mm', 'Asia/Tokyo').toDate();
+};
 
 // 日時フォーマット関数
 function formatDateTimeForInput(date) {
@@ -1451,13 +1456,6 @@ app.post('/update-attendance/:id', requireLogin, async (req, res) => {
 
         // 日付を更新 (時間部分は保持)
         newDate.setHours(0, 0, 0, 0);
-
-        const buildDateTime = (dateStr, timeStr) => {
-            if (!dateStr || !timeStr) return null;
-            const [y, m, d] = dateStr.split('-').map(Number);
-            const [h, min] = timeStr.split(':').map(Number);
-            return new Date(y, m - 1, d, h, min, 0);
-        };
 
         // 各時刻を新しい日付に設定
         attendance.date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
