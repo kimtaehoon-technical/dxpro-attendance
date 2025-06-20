@@ -3793,15 +3793,15 @@ app.get('/styles.css', (req, res) => {
         .inkan-image {
             position: absolute;
             right: -25px;   /* 署名テキストより右へ */
-            top: 10px;     /* 少し上に配置 */
+            top: 5px;     /* 少し上に配置 */
             display: inline-block;
             width: 20px;
             height: 20px;
         }
 
         .inkan-image img {
-            width: 20px;
-            height: 20px;
+            width: 30px;
+            height: 30px;
             display: block;
         }
         .status-badge.returned {
