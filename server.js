@@ -2344,7 +2344,7 @@ app.get('/admin/print-attendance', requireLogin, isAdmin, async (req, res) => {
                     .signature-line {
                         display: inline-block;
                         width: 200px;
-                        border-top: 1px solid #000;
+                        border-top: 0px solid #000;
                         margin-top: 70px;
                         text-align: center;
                     }
@@ -3001,7 +3001,7 @@ app.get('/admin/approve-request/:id', requireLogin, isAdmin, async (req, res) =>
                         th { background-color: #f2f2f2; }
                         .total-hours { font-weight: bold; margin-top: 20px; }
                         .print-footer { margin-top: 50px; text-align: right; }
-                        .signature-line { display: inline-block; width: 200px; border-top: 1px solid #000; margin-top: 70px; }
+                        .signature-line { display: inline-block; width: 200px; border-top: 0px solid #000; margin-top: 70px; }
                     </style>
                 </head>
                 <body>
@@ -3324,7 +3324,7 @@ app.get('/print-attendance', requireLogin, async (req, res) => {
                     .signature-line {
                         display: inline-block;
                         width: 200px;
-                        border-top: 1px solid #000;
+                        border-top: 0px solid #000;
                         margin-top: 70px;
                         text-align: center;
                     }
@@ -3757,7 +3757,7 @@ app.get('/styles.css', (req, res) => {
         .signature-line {
             display: inline-block;
             width: 200px;
-            border-top: 1px solid transparent; /* 線を透明に */
+            border-top: 0px solid transparent; /* 線を透明に */
             margin-top: 70px;
             text-align: center;
         }
@@ -3792,8 +3792,8 @@ app.get('/styles.css', (req, res) => {
         /* 印鑑画像を右上に重ねる */
         .inkan-image {
             position: absolute;
-            right: -25px;   /* 署名テキストより右へ */
-            top: 5px;     /* 少し上に配置 */
+            right: -20px;   /* 署名テキストより右へ */
+            top: 0px;     /* 少し上に配置 */
             display: inline-block;
             width: 20px;
             height: 20px;
@@ -4006,7 +4006,7 @@ app.get('/styles.css', (req, res) => {
             .signature-line {
                 display: inline-block;
                 width: 200px;
-                border-top: 1px solid transparent; /* 線を透明に */
+                border-top: 0px solid transparent; /* 線を透明に */
                 margin-top: 70px;
                 text-align: center;
             }
