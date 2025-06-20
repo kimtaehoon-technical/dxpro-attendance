@@ -1284,11 +1284,8 @@ app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
 
         function formatDateTimeForInput(date) {
             if (!date) return '';
-            // +9時間してJSTで表示
-            const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-            const hours = String(jst.getHours()).padStart(2, '0');
-            const minutes = String(jst.getMinutes()).padStart(2, '0');
-            return `${hours}:${minutes}`;
+            // JSTとして表示
+            return moment(date).tz('Asia/Tokyo').format('HH:mm');
         }
 
         const dateValue = moment(attendance.date).tz('Asia/Tokyo').format('YYYY-MM-DD');
