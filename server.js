@@ -1454,33 +1454,7 @@ app.post('/update-attendance/:id', requireLogin, async (req, res) => {
         attendance.lunchEnd = parseTimeAsJST(req.body.date, req.body.lunchEnd);
         attendance.status = req.body.status;
         attendance.notes = req.body.notes || null;
-
-        if (req.body.checkIn) {
-            const checkInDate = new Date(newDate);
-            checkInDate.setHours(checkInTime[0], checkInTime[1]);
-            attendance.checkIn = checkInDate;
-        }
-
-        if (req.body.checkOut && checkOutTime) {
-            const checkOutDate = new Date(newDate);
-            checkOutDate.setHours(checkOutTime[0], checkOutTime[1]);
-            attendance.checkOut = checkOutDate;
-        }
-
-        if (req.body.lunchStart && lunchStartTime) {
-            const lunchStartDate = new Date(newDate);
-            lunchStartDate.setHours(lunchStartTime[0], lunchStartTime[1]);
-            attendance.lunchStart = lunchStartDate;
-        }
-
-        if (req.body.lunchEnd && lunchEndTime) {
-            const lunchEndDate = new Date(newDate);
-            lunchEndDate.setHours(lunchEndTime[0], lunchEndTime[1]);
-            attendance.lunchEnd = lunchEndDate;
-        }
-
-        attendance.status = req.body.status;
-        
+      
         // 勤務時間再計算
         if (attendance.checkOut) {
             const totalMs = attendance.checkOut - attendance.checkIn;
@@ -1513,39 +1487,6 @@ app.post('/update-attendance/:id', requireLogin, async (req, res) => {
     } catch (error) {
         console.error('勤怠更新エラー:', error);
         res.redirect('/dashboard');
-    }
-});
-
-
-// 出勤処理
-app.post('/checkin', requireLogin, async (req, res) => {
-    const now = moment().tz('Asia/Tokyo').toDate();
-    try {
-        const user = await User.findById(req.session.userId);
-
-        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
-        const tomorrow = moment(today).add(1, 'day').toDate();
-        
-        const existingRecord = await Attendance.findOne({
-            userId: user._id,
-            date: { $gte: today, $lt: tomorrow }
-        });
-
-        if (existingRecord) return res.redirect('/dashboard');
-        
-        const now = moment().tz('Asia/Tokyo').toDate();
-        const attendance = new Attendance({
-            userId: user._id,
-            date: today,
-            checkIn: now,
-            status: now.getHours() > 9 ? '遅刻' : '正常'
-        });
-        
-        await attendance.save();
-        res.redirect('/dashboard');
-    } catch (error) {
-        console.error(error);
-        res.status(500).send('出勤処理中にエラーが発生しました');
     }
 });
 
@@ -1739,22 +1680,54 @@ app.post('/save-attendance', requireLogin, async (req, res) => {
     }
 });
 
+// 出勤処理
+app.post('/checkin', requireLogin, async (req, res) => {
+    try {
+        const user = await User.findById(req.session.userId);
+
+        // 「日本時間の今」をUTCで保存
+        const now = new Date();
+        const todayJST = moment.tz(now, "Asia/Tokyo").startOf('day').toDate();
+        const tomorrowJST = moment.tz(now, "Asia/Tokyo").add(1, 'day').startOf('day').toDate();
+
+        const existingRecord = await Attendance.findOne({
+            userId: user._id,
+            date: { $gte: todayJST, $lt: tomorrowJST }
+        });
+        if (existingRecord) return res.redirect('/dashboard');
+
+        const attendance = new Attendance({
+            userId: user._id,
+            date: todayJST,
+            checkIn: now, // 現在時刻（UTC）
+            status: now.getHours() >= 9 ? '遅刻' : '正常'
+        });
+
+        await attendance.save();
+        res.redirect('/dashboard');
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('出勤処理中にエラーが発生しました');
+    }
+});
+
 // 昼休み開始処理
 app.post('/start-lunch', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
 
-        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
-        const tomorrow = moment(today).add(1, 'day').toDate();
+        const now = new Date();
+        const todayJST = moment.tz(now, "Asia/Tokyo").startOf('day').toDate();
+        const tomorrowJST = moment.tz(now, "Asia/Tokyo").add(1, 'day').startOf('day').toDate();
 
         const attendance = await Attendance.findOne({
             userId: user._id,
-            date: { $gte: today, $lt: tomorrow }
+            date: { $gte: todayJST, $lt: tomorrowJST }
         });
 
         if (!attendance) return res.redirect('/dashboard');
 
-        attendance.lunchStart = moment().tz('Asia/Tokyo').toDate();
+        attendance.lunchStart = now;
         await attendance.save();
         res.redirect('/dashboard');
     } catch (error) {
@@ -1768,17 +1741,18 @@ app.post('/end-lunch', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
 
-        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
-        const tomorrow = moment(today).add(1, 'day').toDate();
+        const now = new Date();
+        const todayJST = moment.tz(now, "Asia/Tokyo").startOf('day').toDate();
+        const tomorrowJST = moment.tz(now, "Asia/Tokyo").add(1, 'day').startOf('day').toDate();
 
         const attendance = await Attendance.findOne({
             userId: user._id,
-            date: { $gte: today, $lt: tomorrow }
+            date: { $gte: todayJST, $lt: tomorrowJST }
         });
 
         if (!attendance || !attendance.lunchStart) return res.redirect('/dashboard');
 
-        attendance.lunchEnd = moment().tz('Asia/Tokyo').toDate();
+        attendance.lunchEnd = now;
         await attendance.save();
         res.redirect('/dashboard');
     } catch (error) {
@@ -1792,17 +1766,17 @@ app.post('/checkout', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
 
-        const today = moment().tz('Asia/Tokyo').startOf('day').toDate();
-        const tomorrow = moment(today).add(1, 'day').toDate();
+        const now = new Date();
+        const todayJST = moment.tz(now, "Asia/Tokyo").startOf('day').toDate();
+        const tomorrowJST = moment.tz(now, "Asia/Tokyo").add(1, 'day').startOf('day').toDate();
 
         const attendance = await Attendance.findOne({
             userId: user._id,
-            date: { $gte: today, $lt: tomorrow }
+            date: { $gte: todayJST, $lt: tomorrowJST }
         });
 
         if (!attendance) return res.redirect('/dashboard');
 
-        const now = moment().tz('Asia/Tokyo').toDate();
         attendance.checkOut = now;
 
         // 昼休み時間がある場合の計算
