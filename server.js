@@ -1613,6 +1613,22 @@ app.get('/add-attendance', requireLogin, (req, res) => {
     `);
 });
 
+// 勤怠記録削除
+app.post('/delete-attendance/:id', requireLogin, async (req, res) => {
+    try {
+        const attendance = await Attendance.findById(req.params.id);
+        // 承認済みは削除不可
+        if (!attendance || attendance.isConfirmed) {
+            return res.status(403).send('この勤怠記録は削除できません');
+        }
+        await Attendance.deleteOne({ _id: req.params.id });
+        res.redirect('back'); // 前ページに戻す
+    } catch (error) {
+        console.error('勤怠削除エラー:', error);
+        res.status(500).send('削除中にエラーが発生しました');
+    }
+});
+
 app.post('/save-attendance', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
@@ -2591,6 +2607,13 @@ app.get('/my-monthly-attendance', requireLogin, async (req, res) => {
                                            ${att.isConfirmed || (approvalRequest && approvalRequest.status === 'pending') ? 'disabled style="opacity:0.5; pointer-events:none;"' : ''}>
                                             編集
                                         </a>
+                                        <form action="/delete-attendance/${att._id}" method="POST" style="display:inline;" 
+                                            onsubmit="return confirm('この打刻記録を削除しますか？');">
+                                            <button type="submit" class="btn delete-btn"
+                                                ${att.isConfirmed || (approvalRequest && approvalRequest.status === 'pending') ? 'disabled style="opacity:0.5; pointer-events:none;"' : ''}>
+                                                削除
+                                            </button>
+                                        </form>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -3912,6 +3935,16 @@ app.get('/styles.css', (req, res) => {
             gap: 0.75rem;
         }
 
+        .btn.delete-btn {
+            background-color: #dc3545;
+            color: white;
+        }
+        .btn.delete-btn:disabled {
+            background-color: #ccc;
+            color: #fff;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
         .note-cell {
             max-width: 200px;
             overflow: hidden;
@@ -4005,7 +4038,18 @@ app.get('/styles.css', (req, res) => {
                 white-space: nowrap;
                 -webkit-overflow-scrolling: touch;
             }
-
+                
+            .btn.delete-btn {
+                background-color: #dc3545;
+                color: white;
+            }
+            .btn.delete-btn:disabled {
+                background-color: #ccc;
+                color: #fff;
+                cursor: not-allowed;
+                opacity: 0.5;
+            }
+                
             .btn {
                 padding: 0.7rem 1rem;
                 font-size: 0.9rem;
