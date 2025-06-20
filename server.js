@@ -1622,7 +1622,7 @@ app.post('/delete-attendance/:id', requireLogin, async (req, res) => {
             return res.status(403).send('この勤怠記録は削除できません');
         }
         await Attendance.deleteOne({ _id: req.params.id });
-        res.redirect('back'); // 前ページに戻す
+        res.redirect('/my-monthly-attendance?year=' + attendance.date.getFullYear() + '&month=' + (attendance.date.getMonth() + 1));
     } catch (error) {
         console.error('勤怠削除エラー:', error);
         res.status(500).send('削除中にエラーが発生しました');
