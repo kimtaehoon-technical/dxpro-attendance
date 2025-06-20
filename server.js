@@ -3763,6 +3763,8 @@ app.get('/styles.css', (req, res) => {
         }
         .approver-signature {
             color: red; /* フォントを赤に */
+            position: relative;      /* これが必要！ */
+            display: inline-block;
         }
         .status-badge {
             display: inline-flex;
