@@ -2409,7 +2409,11 @@ app.get('/admin/print-attendance', requireLogin, isAdmin, async (req, res) => {
                     <div class="print-footer">
                         <div>作成日: ${new Date().toLocaleDateString('ja-JP')}</div>
                         <div class="signature-line">
-                            <span class="approver-signature">DXPRO SOLUTIONS 金 兌訓</span>
+                            <span class="approver-signature">DXPRO SOLUTIONS 金 兌訓
+                                <span class="inkan-image">
+                                    <img src="/inkan.png" alt="印鑑" width="20" height="20">
+                                </span>
+                            </span>
                         </div>
                     </div>
                     
@@ -3750,7 +3754,16 @@ app.get('/styles.css', (req, res) => {
             border-radius: var(--border-radius);
             box-shadow: var(--box-shadow);
         }
-
+        .signature-line {
+            display: inline-block;
+            width: 200px;
+            border-top: 1px solid transparent; /* 線を透明に */
+            margin-top: 70px;
+            text-align: center;
+        }
+        .approver-signature {
+            color: red; /* フォントを赤に */
+        }
         .status-badge {
             display: inline-flex;
             align-items: center;
@@ -3774,7 +3787,21 @@ app.get('/styles.css', (req, res) => {
             background-color: #f8d7da;
             color: #721c24;
         }
+        /* 印鑑画像を右上に重ねる */
+        .inkan-image {
+            position: absolute;
+            right: -25px;   /* 署名テキストより右へ */
+            top: -10px;     /* 少し上に配置 */
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+        }
 
+        .inkan-image img {
+            width: 20px;
+            height: 20px;
+            display: block;
+        }
         .status-badge.returned {
             background-color: #e2e3e5;
             color: #383d41;
@@ -3974,7 +4001,16 @@ app.get('/styles.css', (req, res) => {
                 padding: 0;
                 margin: 0;
             }
-            
+            .signature-line {
+                display: inline-block;
+                width: 200px;
+                border-top: 1px solid transparent; /* 線を透明に */
+                margin-top: 70px;
+                text-align: center;
+            }
+            .approver-signature {
+                color: red; /* フォントを赤に */
+            }
             .no-print {
                 display: none;
             }
@@ -3992,7 +4028,21 @@ app.get('/styles.css', (req, res) => {
                 text-align: center;
                 margin-bottom: 1cm;
             }
-            
+            /* 印鑑画像を右上に重ねる */
+            .inkan-image {
+                position: absolute;
+                right: -25px;   /* 署名テキストより右へ */
+                top: -10px;     /* 少し上に配置 */
+                display: inline-block;
+                width: 20px;
+                height: 20px;
+            }
+
+            .inkan-image img {
+                width: 20px;
+                height: 20px;
+                display: block;
+            }
             .print-title {
                 font-size: 16pt;
                 font-weight: bold;
