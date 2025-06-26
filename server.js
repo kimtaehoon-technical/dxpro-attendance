@@ -4331,6 +4331,7 @@ app.listen(PORT, async () => {
         isAdmin: admin?.isAdmin,
         passwordMatch: admin ? bcrypt.compareSync('admin1234', admin.password) : false
     });
-    
+
+    console.log('SENDGRID_API_KEY:', process.env.SENDGRID_API_KEY ? 'Loaded ✅' : 'Missing ❌');
     console.log(`サーバーが http://localhost:${PORT}で実行中です。`);
 });
