@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
+const MONGODB_URI = process.env.MONGODB_URI;
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const app = express();
@@ -96,7 +97,6 @@ transporter.sendMail({
   };
   
 // MongoDB接続
-const MONGODB_URI = 'mongodb+srv://dxprosol:kim650323@dxpro.ealx5.mongodb.net/attendance-system?retryWrites=true&w=majority';
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('MongoDB接続成功'))
   .catch(err => console.error('MongoDB接続エラー:', err));
