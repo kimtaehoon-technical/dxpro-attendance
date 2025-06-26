@@ -19,16 +19,6 @@ const transporter = nodemailer.createTransport({
 }
 });
 
-//   const transporter = nodemailer.createTransport({
-//     host: 'mail1022.onamae.ne.jp',
-//     port: 465, // SSL接続あり
-//     secure: true, // ポート465ならtrue
-//     auth: {
-//       user: 'info@dxpro-sol.com',
-//       pass: 'dxpro-sol2024'
-//     }
-//   });
-
   // テスト送信
 transporter.sendMail({
     from: '"DXPRO SOL" <info@dxpro-sol.com>',
