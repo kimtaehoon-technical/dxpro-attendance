@@ -40,6 +40,24 @@ transporter.sendMail({
     }
   });
 
+  app.get('/test-send-mail', async (req, res) => {
+    try {
+      const mailOptions = {
+        from: 'info@dxpro-sol.com',
+        to: 'xogns00089@gmail.com',
+        subject: '📧 テストメール from DXPRO',
+        text: 'このメールはシステムからのテスト送信です。',
+      };
+  
+      const info = await transporter.sendMail(mailOptions);
+      console.log('✅ メール送信成功:', info);
+      res.send('✅ メール送信に成功しました。');
+    } catch (error) {
+      console.error('❌ メール送信失敗:', error);
+      res.status(500).send('❌ メール送信に失敗しました。');
+    }
+  });
+
   const generatePdf = (html, options = {}) => {
     return new Promise((resolve, reject) => {
       pdf.create(html, options).toBuffer((err, buffer) => {
