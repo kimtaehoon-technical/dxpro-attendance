@@ -48,8 +48,8 @@ sgMail.send(msg)
       });
       res.send('メール送信成功');
     } catch (error) {
-      console.error(error);
-      res.status(500).send('メール送信失敗');
+      console.error('メール送信エラー詳細:', error);
+      res.status(500).send(`メール送信失敗: ${error.message}`);
     }
   });
 
