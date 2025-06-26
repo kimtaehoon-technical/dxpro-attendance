@@ -3012,12 +3012,12 @@ app.get('/admin/approve-request/:id', requireLogin, isAdmin, async (req, res) =>
                     <meta charset="UTF-8">
                     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP&display=swap" rel="stylesheet">
                     <style>
-                        body { font-family: 'Noto Sans JP', sans-serif; padding: 20px; }
+                        body { font-family: 'Noto Sans JP', sans-serif; padding: 10px; }
                         .print-header { text-align: center; margin-bottom: 30px; }
                         .print-title { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
                         .employee-info { margin-bottom: 20px; }
-                        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                        table { width: 100%; font-size: 11px; border-collapse: collapse; margin-bottom: 20px; }
+                        th, td { border: 1px solid #ddd; padding: 3px; text-align: left; }
                         th { background-color: #f2f2f2; }
                         .total-hours { font-weight: bold; margin-top: 20px; }
                         .print-footer { margin-top: 50px; text-align: right; }
