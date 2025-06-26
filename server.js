@@ -1,7 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const MONGODB_URI = process.env.MONGODB_URI;
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const app = express();
@@ -16,45 +15,9 @@ const transporter = nodemailer.createTransport({
   secure: false,             // 465ならtrue, 587ならfalse
   auth: {
     user: 'apikey', // ここは固定で 'apikey'
-    pass: process.env.SENDGRID_API_KEY,
-  }
+    pass: process.env.SENDGRID_API_KEY
+}
 });
-
-const sgMail = require('@sendgrid/mail');
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-
-const msg = {
-  to: 'xogns00089@gmail.com',
-  from: 'info@dxpro-sol.com',  // 認証済みドメインのメールアドレス
-  subject: 'Sending with SendGrid is Fun',
-  text: 'and easy to do anywhere, even with Node.js',
-  html: '<strong>and easy to do anywhere, even with Node.js</strong>',
-};
-
-sgMail.send(msg)
-  .then(() => {
-    console.log('Email sent');
-  })
-  .catch((error) => {
-    console.error(error);
-  });
-
-  app.get('/test-send-mail', async (req, res) => {
-    try {
-      await sgMail.send({
-        to: 'xogns00089@gmail.com',
-        from: 'info@dxpro-sol.com',
-        subject: 'Test Email from Hosted Server',
-        text: 'This is a test email.',
-      });
-      res.send('メール送信成功');
-      console.log('SENDGRID_API_KEY:', process.env.SENDGRID_API_KEY);
-    } catch (error) {
-      console.error('メール送信エラー詳細:', error);
-      res.status(500).send(`メール送信失敗: ${error.message}`);
-      console.log('SENDGRID_API_KEY:', process.env.SENDGRID_API_KEY);
-    }
-  });
 
 //   const transporter = nodemailer.createTransport({
 //     host: 'mail1022.onamae.ne.jp',
@@ -97,6 +60,7 @@ transporter.sendMail({
   };
   
 // MongoDB接続
+const MONGODB_URI = process.env.MONGODB_URI;
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('MongoDB接続成功'))
   .catch(err => console.error('MongoDB接続エラー:', err));
