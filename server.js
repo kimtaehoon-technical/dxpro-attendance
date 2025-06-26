@@ -12,13 +12,11 @@ const fs = require('fs');
 const moment = require('moment-timezone');
 
 const transporter = nodemailer.createTransport({
-  host: 'smtp.sendgrid.net', // 例: SendGrid
-  port: 587,                 // または 465
-  secure: false,             // 465ならtrue, 587ならfalse
+  service: 'gmail',
   auth: {
-    user: 'apikey', // ここは固定で 'apikey'
-    pass: process.env.SENDGRID_API_KEY
-}
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
 });
 
   // テスト送信
