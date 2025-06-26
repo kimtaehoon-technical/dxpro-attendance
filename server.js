@@ -3090,17 +3090,15 @@ app.get('/admin/approve-request/:id', requireLogin, isAdmin, async (req, res) =>
             // 6. 이메일 발송
             const mailOptions = {
                 from: process.env.EMAIL_USER || 'info@dxpro-sol.com',
-                to: 'xogns00089@gmail.com',
-
-                // to: 'nakamura-s-office@bg8.so-net.ne.jp, msatoh@bg8.so-net.ne.jp',
-                cc: 'kim_taehoon@dxpro-sol.com',
+                to: 'nakamura-s-office@bg8.so-net.ne.jp, msatoh@bg8.so-net.ne.jp',
+                cc: 'kim_taehoon@dxpro-sol.com, otomo_kento@dxpro-sol.com',
                 subject: `【勤怠報告】${employee.name}様の${request.year}年${request.month}月分勤怠情報のご報告`,
                 text:
             `佐藤公臣税理士事務所  
             佐藤 様
             
             いつも大変お世話になっております。  
-            合同会社DXPRO SOLUTIONSの金です。
+            合同会社DXPRO SOLUTIONSの人事担当です。
             
             このたび、${employee.name}さんの${request.year}年${request.month}月分の勤怠情報につきまして、
             以下の通りご報告申し上げます。
@@ -3171,9 +3169,9 @@ https://www.dxpro-sol.com/
             
 
             await transporter.sendMail(mailOptions);
-            console.log(`근태 승인 이메일 발송 완료: ${employee.name} - ${request.year}년 ${request.month}월`);
+            console.log(`勤怠メール送信完了: ${employee.name} - ${request.year}年 ${request.month}月`);
         } catch (emailError) {
-            console.error('이메일 발송 중 오류:', emailError);
+            console.error('メール発信中にエラー発生:', emailError);
             // 이메일 실패해도 승인은 정상 처리
         }
 
