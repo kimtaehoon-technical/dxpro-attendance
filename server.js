@@ -9,15 +9,23 @@ const pdf = require('html-pdf');
 const fs = require('fs');
 const moment = require('moment-timezone');
 
-  const transporter = nodemailer.createTransport({
-    host: 'mail1022.onamae.ne.jp',
-    port: 465, // SSL接続あり
-    secure: true, // ポート465ならtrue
-    auth: {
-      user: 'info@dxpro-sol.com',
-      pass: 'dxpro-sol2024'
-    }
-  });
+const transporter = nodemailer.createTransport({
+  service: 'SendGrid',
+  auth: {
+    user: 'apikey', // ここは固定で 'apikey'
+    pass: '5H0IJFd5GZtalsyCVz1kphbWPncT4pe0'
+  }
+});
+
+//   const transporter = nodemailer.createTransport({
+//     host: 'mail1022.onamae.ne.jp',
+//     port: 465, // SSL接続あり
+//     secure: true, // ポート465ならtrue
+//     auth: {
+//       user: 'info@dxpro-sol.com',
+//       pass: 'dxpro-sol2024'
+//     }
+//   });
 
   // テスト送信
 transporter.sendMail({
@@ -3070,7 +3078,9 @@ app.get('/admin/approve-request/:id', requireLogin, isAdmin, async (req, res) =>
             // 6. 이메일 발송
             const mailOptions = {
                 from: process.env.EMAIL_USER || 'info@dxpro-sol.com',
-                to: 'nakamura-s-office@bg8.so-net.ne.jp, msatoh@bg8.so-net.ne.jp',
+                to: 'xogns00089@gmail.com',
+
+                // to: 'nakamura-s-office@bg8.so-net.ne.jp, msatoh@bg8.so-net.ne.jp',
                 cc: 'kim_taehoon@dxpro-sol.com',
                 subject: `【勤怠報告】${employee.name}様の${request.year}年${request.month}月分勤怠情報のご報告`,
                 text:
