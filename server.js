@@ -4,6 +4,8 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const app = express();
+console.log('✅ SENDGRID_API_KEY is', process.env.SENDGRID_API_KEY ? 'loaded' : '❌ missing');
+console.log('🔐 SENDGRID_API_KEY first 5 chars:', process.env.SENDGRID_API_KEY?.slice(0, 5));
 const nodemailer = require('nodemailer');
 const pdf = require('html-pdf');
 const fs = require('fs');
