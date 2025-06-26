@@ -47,9 +47,11 @@ sgMail.send(msg)
         text: 'This is a test email.',
       });
       res.send('メール送信成功');
+      console.log('SENDGRID_API_KEY:', process.env.SENDGRID_API_KEY);
     } catch (error) {
       console.error('メール送信エラー詳細:', error);
       res.status(500).send(`メール送信失敗: ${error.message}`);
+      console.log('SENDGRID_API_KEY:', process.env.SENDGRID_API_KEY);
     }
   });
 
