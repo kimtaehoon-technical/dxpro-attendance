@@ -4,25 +4,20 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const app = express();
-console.log('✅ SENDGRID_API_KEY is', process.env.SENDGRID_API_KEY ? 'loaded' : '❌ missing');
-console.log('🔐 SENDGRID_API_KEY first 5 chars:', process.env.SENDGRID_API_KEY?.slice(0, 5));
 const nodemailer = require('nodemailer');
 const pdf = require('html-pdf');
 const fs = require('fs');
 const moment = require('moment-timezone');
 
 const transporter = nodemailer.createTransport({
-    host: 'mail1022.onamae.ne.jp',
-    port: 587,
-    secure: false,  // STARTTLSなのでfalse
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
-    },
-    tls: {
-        rejectUnauthorized: false
-      }
-  });
+  host: 'smtp.sendgrid.net', // 例: SendGrid
+  port: 587,                 // または 465
+  secure: false,             // 465ならtrue, 587ならfalse
+  auth: {
+    user: 'apikey', // ここは固定で 'apikey'
+    pass: process.env.SENDGRID_API_KEY
+}
+});
 
   // テスト送信
 transporter.sendMail({
@@ -4336,7 +4331,6 @@ app.listen(PORT, async () => {
         isAdmin: admin?.isAdmin,
         passwordMatch: admin ? bcrypt.compareSync('admin1234', admin.password) : false
     });
-
-    console.log('SENDGRID_API_KEY:', process.env.SENDGRID_API_KEY ? 'Loaded ✅' : 'Missing ❌');
+    
     console.log(`サーバーが http://localhost:${PORT}で実行中です。`);
 });
