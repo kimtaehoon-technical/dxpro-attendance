@@ -3010,8 +3010,9 @@ app.get('/admin/approve-request/:id', requireLogin, isAdmin, async (req, res) =>
                 <head>
                     <title>勤怠表印刷 - ${employee.name}</title>
                     <meta charset="UTF-8">
+                    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP&display=swap" rel="stylesheet">
                     <style>
-                        body { font-family: Arial, sans-serif; padding: 20px; }
+                        body { font-family: 'Noto Sans JP', sans-serif; padding: 20px; }
                         .print-header { text-align: center; margin-bottom: 30px; }
                         .print-title { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
                         .employee-info { margin-bottom: 20px; }
