@@ -15,9 +15,43 @@ const transporter = nodemailer.createTransport({
   secure: false,             // 465ならtrue, 587ならfalse
   auth: {
     user: 'apikey', // ここは固定で 'apikey'
-    pass: '5H0IJFd5GZtalsyCVz1kphbWPncT4pe0'
+    pass: process.env.SENDGRID_API_KEY,
   }
 });
+
+const sgMail = require('@sendgrid/mail');
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+const msg = {
+  to: 'xogns00089@gmail.com',
+  from: 'info@dxpro-sol.com',  // 認証済みドメインのメールアドレス
+  subject: 'Sending with SendGrid is Fun',
+  text: 'and easy to do anywhere, even with Node.js',
+  html: '<strong>and easy to do anywhere, even with Node.js</strong>',
+};
+
+sgMail.send(msg)
+  .then(() => {
+    console.log('Email sent');
+  })
+  .catch((error) => {
+    console.error(error);
+  });
+
+  app.get('/test-send-mail', async (req, res) => {
+    try {
+      await sgMail.send({
+        to: 'xogns00089@gmail.com',
+        from: 'info@dxpro-sol.com',
+        subject: 'Test Email from Hosted Server',
+        text: 'This is a test email.',
+      });
+      res.send('メール送信成功');
+    } catch (error) {
+      console.error(error);
+      res.status(500).send('メール送信失敗');
+    }
+  });
 
 //   const transporter = nodemailer.createTransport({
 //     host: 'mail1022.onamae.ne.jp',
