@@ -12,12 +12,17 @@ const fs = require('fs');
 const moment = require('moment-timezone');
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+    host: 'mail1022.onamae.ne.jp',
+    port: 587,
+    secure: false,  // STARTTLSなのでfalse
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    },
+    tls: {
+        rejectUnauthorized: false
+      }
+  });
 
   // テスト送信
 transporter.sendMail({
