@@ -8,8 +8,10 @@ const nodemailer = require('nodemailer');
 const pdf = require('html-pdf');
 const fs = require('fs');
 const moment = require('moment-timezone');
-
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
 const sgMail = require('@sendgrid/mail');
+const { ObjectId } = require('mongodb');
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const transporter = nodemailer.createTransport({
@@ -1387,7 +1389,6 @@ input, select, textarea { padding:8px; border-radius:6px; border:1px solid #ccc;
 
 /* レスポンシブ */
 @media(max-width:768px){ .main { padding:15px; } }
-
 </style>
 </head>
 <body>
@@ -1913,40 +1914,180 @@ app.get('/goals/approval', requireLogin, async (req, res) => {
 
 // 人事管理画面
 app.get('/hr', requireLogin, async (req, res) => {
-    // 仮データ: 実際はDBから取得
-    const employees = [
-        { name: '金 兌訓', department: '開発', position: '代表' },
-        { name: '山田 太郎', department: '営業', position: '担当' },
-    ];
+    const employees = await Employee.find();
 
     const html = `
-        <table border="1" cellpadding="8" cellspacing="0" style="width:100%; background:white; border-radius:8px;">
-            <thead>
-                <tr>
-                    <th>氏名</th>
-                    <th>部署</th>
-                    <th>役職</th>
-                    <th>操作</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${employees.map(e => `
-                    <tr>
-                        <td>${e.name}</td>
-                        <td>${e.department}</td>
-                        <td>${e.position}</td>
-                        <td>
-                            <a href="/hr/edit/${encodeURIComponent(e.name)}">編集</a> |
-                            <a href="/hr/delete/${encodeURIComponent(e.name)}">削除</a>
-                        </td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-        <a href="/hr/add" class="btn">社員追加</a>
-    `;
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <div class="container mt-4">
+        <h2>人事管理ダッシュボード</h2>
 
+        <div class="mb-3">
+            <a href="/hr/add" class="btn btn-primary me-2">社員追加</a>
+            <a href="/hr/statistics" class="btn btn-info me-2">統計確認</a>
+            <a href="/hr/export" class="btn btn-success">CSV出力</a>
+        </div>
+
+        <table class="table table-striped table-hover">
+        <thead class="table-light">
+        <tr>
+            <th>写真</th>
+            <th>氏名</th>
+            <th>部署</th>
+            <th>役職</th>
+            <th>入社日</th>
+            <th>有給残日数</th>
+            <th>操作</th>
+        </tr>
+        </thead>
+        <tbody>
+            ${employees.map(e => `
+                <tr>
+                    <td>${e.photo}</td>
+                    <td>${e.name}</td>
+                    <td>${e.department}</td>
+                    <td>${e.position}</td>
+                    <td>${e.joinDate ? e.joinDate.toISOString().substring(0,10) : '-'}</td>
+                    <td>${e.paidLeave || 0}</td>
+                    <td>
+                        <a href="/hr/edit/${e._id}" class="btn">編集</a> |
+                        <a href="/hr/delete/${e._id}" class="btn">削除</a> |
+                        <a href="/hr/payroll/${e._id}" class="btn">給与計算</a> |
+                        <a href="/hr/leave/${e._id}" class="btn">有給更新</a> |
+                        <form action="/hr/photo/${e._id}" method="POST" enctype="multipart/form-data" style="display:inline;">
+                            <input type="file" name="photo" style="width:100px;">
+                            <button type="submit" class="btn">写真アップロード</button>
+                        </form>
+                    </td>
+                </tr>
+            `).join('')}
+        </tbody>
+        </table>
+    `;
     renderPage(req, res, '人事管理', '人事管理画面', html);
+});
+
+
+// 社員追加
+app.get('/hr/add', requireLogin, (req, res) => {
+    const html = `
+        <form action="/hr/add" method="POST">
+            <label>氏名: <input name="name" required></label><br>
+            <label>部署: <input name="department" required></label><br>
+            <label>役職: <input name="position" required></label><br>
+            <label>入社日: <input type="date" name="joinDate" required></label><br>
+            <label>メール: <input type="email" name="email"></label><br>
+            <button type="submit">追加</button>
+        </form>
+    `;
+    renderPage(req, res, '社員追加', '新しい社員を追加', html);
+});
+
+app.post('/hr/add', requireLogin, async (req, res) => {
+    const { name, department, position, joinDate, email } = req.body;
+    await Employee.create({ name, department, position, joinDate, email, paidLeave: 10 });
+    res.redirect('/hr');
+});
+
+// 社員編集
+app.get('/hr/edit/:id', requireLogin, async (req, res) => {
+    const id = req.params.id;
+    const employee = await Employee.findById(req.params.id);
+    if (!employee) return res.redirect('/hr');
+
+    const html = `
+        <form action="/hr/edit/${id}" method="POST">
+            <label>氏名: <input name="name" value="${employee.name}" required></label><br>
+            <label>部署: <input name="department" value="${employee.department}" required></label><br>
+            <label>役職: <input name="position" value="${employee.position}" required></label><br>
+            <label>入社日: <input type="date" name="joinDate" value="${employee.joinDate}" required></label><br>
+            <label>メール: <input type="email" name="email" value="${employee.email || ''}"></label><br>
+            <label>有給残日数: <input type="number" name="paidLeave" value="${employee.paidLeave || 0}"></label><br>
+            <button type="submit">更新</button>
+        </form>
+    `;
+    renderPage(req, res, '社員編集', '社員情報を編集', html);
+});
+
+app.post('/hr/edit/:id', requireLogin, async (req, res) => {
+    const id = req.params.id;
+    const { name, department, position, joinDate, email, paidLeave } = req.body;
+    await db.collection('employees').updateOne(
+        { _id: ObjectId(id) },
+        { $set: { name, department, position, joinDate, email, paidLeave: Number(paidLeave) } }
+    );
+    res.redirect('/hr');
+});
+
+// 社員削除
+app.get('/hr/delete/:id', requireLogin, async (req, res) => {
+    await Employee.findByIdAndDelete(req.params.id);
+    res.redirect('/hr');
+});
+
+// 統計
+app.get('/hr/statistics', requireLogin, async (req, res) => {
+    const employees = await Employee.find();
+    const deptCount = {};
+    const posCount = {};
+    employees.forEach(e => {
+        deptCount[e.department] = (deptCount[e.department] || 0) + 1;
+        posCount[e.position] = (posCount[e.position] || 0) + 1;
+    });
+
+    const html = `
+        <h3>部署別人数</h3>
+        <ul>${Object.entries(deptCount).map(([k,v]) => `<li>${k}: ${v}名</li>`).join('')}</ul>
+        <h3>役職別人数</h3>
+        <ul>${Object.entries(posCount).map(([k,v]) => `<li>${k}: ${v}名</li>`).join('')}</ul>
+        <a href="/hr">社員一覧に戻る</a>
+    `;
+    renderPage(req, res, '統計', '部署・役職統計', html);
+});
+
+// 有給更新
+app.post('/hr/leave/:id', requireLogin, async (req, res) => {
+    const { remainingDays } = req.body;
+    await Employee.findByIdAndUpdate(req.params.id, { paidLeave: Number(remainingDays) });
+    res.redirect('/hr');
+});
+
+// 給与計算
+app.get('/hr/payroll/:id', requireLogin, async (req, res) => {
+    const employee = await Employee.findById(req.params.id);
+    if (!employee) return res.redirect('/hr');
+
+    const attendance = await Attendance.find({ username: employee.name }); // Attendance も Mongoose に統一しておく
+    const totalHours = attendance.reduce((sum, a) => sum + a.workHours, 0);
+    const salaryPerHour = 2000;
+    const totalSalary = totalHours * salaryPerHour;
+
+    const html = `
+        <h3>${employee.name} の給与</h3>
+        <p>勤務時間: ${totalHours}時間</p>
+        <p>支給額: ¥${totalSalary.toLocaleString()}</p>
+        <a href="/hr">社員一覧に戻る</a>
+    `;
+    renderPage(req, res, '給与', '給与計算', html);
+});
+
+// CSVエクスポート
+app.get('/hr/export', requireLogin, async (req, res) => {
+    const employees = await Employee.find();
+    const csv = [
+        ['氏名','部署','役職','入社日','メール','有給残日数'],
+        ...employees.map(e => [e.name, e.department, e.position, e.joinDate, e.email, e.paidLeave || 0])
+    ].map(r => r.join(',')).join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="employees.csv"');
+    res.send(csv);
+});
+
+// 社員写真アップロード
+app.post('/hr/photo/:id', requireLogin, upload.single('photo'), async (req, res) => {
+    const filename = req.file.filename;
+    await Employee.findByIdAndUpdate(req.params.id, { photo: filename });
+    res.redirect('/hr');
 });
 
 
