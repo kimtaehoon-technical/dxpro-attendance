@@ -283,7 +283,7 @@ app.get('/login', (req, res) => {
         <html lang="ja">
         <head>
             <meta charset="UTF-8">
-            <title>DXPRO SOLUTIONS - 勤怠管理システム</title>
+            <title>クラウド業務支援システム</title>
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
             <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
             <style>
@@ -345,8 +345,8 @@ app.get('/login', (req, res) => {
                 }
                 
                 .logo img {
-                    width: 240px;
-                    height: 130px;
+                    width: 180px;
+                    height: 180px;
                     margin-bottom: 1rem;
                 }
                 
@@ -509,8 +509,8 @@ app.get('/login', (req, res) => {
         <body>
             <div class="login-container">
                 <div class="logo">
-                <img src="/dxpro-solution.png" alt="DXPRO" width="150" height="150">
-                    <div class="subtitle">勤怠管理システム</div>
+                <img src="/nokori.png" alt="DXPRO" width="100" height="100">
+                    <div class="subtitle">クラウド業務支援システム</div>
                 </div>
                 
                 <div class="current-time" id="current-time"></div>
@@ -1304,31 +1304,216 @@ app.get('/dashboard', requireLogin, async (req, res) => {
         req.session.user = user;
         req.session.employee = employee;
 
-        renderPage(req, res, 'ホームダッシュボード', `${employee.name} さん、こんにちは`, `
-            <p>従業員ID: ${employee.employeeId} ｜ 部署: ${employee.department}</p>
-            <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:20px; margin-top:20px;">
-                <a href="/attendance-main" style="display:block; background:white; border-radius:12px; padding:20px; text-align:center; text-decoration:none; color:#333; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
-                    <i class="fa-solid fa-business-time" style="font-size:30px; color:#1a73e8;"></i>
-                    <h3>勤怠管理</h3>
-                    <p>今月の出勤日数・残業時間など</p>
-                </a>
-                <a href="/goals" style="display:block; background:white; border-radius:12px; padding:20px; text-align:center; text-decoration:none; color:#333; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
-                    <i class="fa-solid fa-bullseye" style="font-size:30px; color:#1a73e8;"></i>
-                    <h3>目標設定管理</h3>
-                    <p>達成率や未完了タスクを確認</p>
-                </a>
-                <a href="/hr" style="display:block; background:white; border-radius:12px; padding:20px; text-align:center; text-decoration:none; color:#333; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
-                    <i class="fa-solid fa-users" style="font-size:30px; color:#1a73e8;"></i>
-                    <h3>人事管理</h3>
-                    <p>チームメンバーや役割を確認</p>
-                </a>
-                <a href="/leave/apply" style="display:block; background:white; border-radius:12px; padding:20px; text-align:center; text-decoration:none; color:#333; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
-                    <i class="fa-solid fa-plane-departure" style="font-size:30px; color:#1a73e8;"></i>
-                    <h3>休暇管理</h3>
-                    <p>申請中・承認済みの休暇を確認</p>
-                </a>
+        // サンプルデータ
+        const attendanceSummary = { workDays: 20, late: 2, earlyLeave: 1, overtime: 12 };
+        const goalSummary = { personal: 80, team: 65 };
+        const leaveSummary = { pending: 2, upcoming: 3 };
+        const payrollSummary = { pending: 1, upcoming: 2 };
+        const notifications = [
+            { message: "新しい社内イベントのお知らせ", date: "2025-08-28" },
+            { message: "目標提出締切が近づいています", date: "2025-08-27" },
+            { message: "経費申請が承認されました", date: "2025-08-26" }
+        ];
+        const todayActions = [
+            { title: "勤怠承認", module: "勤怠管理" },
+            { title: "目標確認", module: "目標設定" },
+            { title: "休暇承認", module: "休暇管理" },
+        ];
+        const recommendedActions = [
+            { title: "休暇残確認", description: "残り休暇日数が少なくなっています。申請を検討してください", link: "/leave/my-requests" },
+            { title: "未完了タスク確認", description: "今日中に完了すべきタスクがあります", link: "/goals" },
+            { title: "勤怠打刻漏れ", description: "出勤・退勤の打刻がまだ完了していません", link: "/attendance-main" },
+        ];
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth(); // 0～11
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        // 出勤・休暇情報サンプル（DBから取得しても可）
+        const attendanceData = {
+            "2025-08-01": { type: "work", overtime: 1 },
+            "2025-08-02": { type: "work", overtime: 0 },
+            "2025-08-03": { type: "leave" },
+            // ...必要に応じて追加
+        };
+
+        // 月全体のカレンダー配列を作成
+        const monthCalendar = [];
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            monthCalendar.push({
+                date: dateStr,
+                ...attendanceData[dateStr] // なければ undefined
+            });
+        }
+        // ミニカレンダー・勤務状況サンプル
+        const miniCalendar = [
+            { date: "2025-08-25", type: "work", overtime: 2 },
+            { date: "2025-08-26", type: "work", overtime: 0 },
+            { date: "2025-08-27", type: "leave" },
+            { date: "2025-08-28", type: "work", overtime: 1.5 },
+        ];
+        renderPage(req, res, '総合ダッシュボード', `${employee.name} さん、こんにちは`, `
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+            <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+            <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+            <style>
+                body { font-family: 'Roboto', sans-serif; background:#f9f9f9; }
+                .card {
+                border-radius: 10px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+                transition: transform 0.15s, box-shadow 0.15s;
+                }
+                .card:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 6px 15px rgba(0,0,0,0.12);
+                }
+                .icon-large { font-size:2rem; margin-bottom:10px; }
+                .section-title { margin-bottom:15px; font-weight:600; }
+                .activity-item { padding:8px 0; border-bottom:1px solid #eee; }
+                .activity-item:last-child { border-bottom:none; }
+                .progress { height:10px; border-radius:5px; }
+            </style>
+
+            <div class="container-fluid mt-4">
+                <!-- ウェルカム -->
+                <div class="mb-4">
+                    <p>従業員ID: ${employee.employeeId} ｜ 部署: ${employee.department}</p>
+                </div>
+
+                <!-- 上段カード: サマリー -->
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <div class="card p-3 text-center bg-light">
+                            <i class="fa-solid fa-calendar-check icon-large text-primary"></i>
+                            <h6>出勤日数</h6>
+                            <strong>${attendanceSummary.workDays}日</strong>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3 text-center bg-white">
+                        <i class="fa-solid fa-clock icon-large text-warning"></i>
+                        <h6 class="mt-2">残業時間</h6>
+                        <strong>${attendanceSummary.overtime}h</strong>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3 text-center bg-light">
+                            <i class="fa-solid fa-bullseye icon-large text-success"></i>
+                            <h6>個人目標達成率</h6>
+                            <div class="progress mb-1">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: ${goalSummary.personal}%"></div>
+                            </div>
+                            <small>${goalSummary.personal}%</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3 text-center bg-light">
+                            <i class="fa-solid fa-users icon-large text-info"></i>
+                            <h6>チーム目標達成率</h6>
+                            <div class="progress mb-1">
+                                <div class="progress-bar bg-info" role="progressbar" style="width: ${goalSummary.team}%"></div>
+                            </div>
+                            <small>${goalSummary.team}%</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 中段: 今日のアクション -->
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card p-3">
+                            <h5 class="section-title">今日のアクション</h5>
+                            ${todayActions.map(a => `
+                                <div class="activity-item">
+                                    <i class="fa-solid fa-angle-right me-2"></i> ${a.title} (${a.module})
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- 最近の通知 -->
+                    <div class="col-md-6">
+                        <div class="card p-3">
+                            <h5 class="section-title">最近の通知</h5>
+                            ${notifications.map(n => `
+                                <div class="activity-item">
+                                    <i class="fa-solid fa-bell me-2"></i> ${n.message} <small class="text-muted">(${n.date})</small>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 下段: 主要モジュールショートカット -->
+                <div class="row g-3 mt-4">
+                    ${[
+                        { title: '勤怠管理', icon: 'fa-business-time', color: 'primary', link: '/attendance-main' },
+                        { title: '目標設定管理', icon: 'fa-bullseye', color: 'success', link: '/goals' },
+                        { title: '人事管理', icon: 'fa-users', color: 'info', link: '/hr' },
+                        { title: '休暇管理', icon: 'fa-plane-departure', color: 'warning', link: '/leave/apply' },
+                        { title: '給与管理', icon: 'fa-yen-sign', color: 'secondary', link: '/hr/payroll' },
+                        { title: '社内掲示板', icon: 'fa-comments', color: 'dark', link: '/board' },
+                    ].map(m => `
+                        <div class="col-md-2 col-sm-4">
+                            <a href="${m.link}" class="text-decoration-none text-dark">
+                                <div class="card text-center p-3">
+                                    <i class="fa-solid ${m.icon} icon-large text-${m.color}"></i>
+                                    <h6 class="mt-2">${m.title}</h6>
+                                </div>
+                            </a>
+                        </div>
+                    `).join('')}
+                </div>
+                <!-- 予測・おすすめアクション -->
+                <div class="row g-3 mt-4">
+                <div class="col-md-12">
+                    <div class="card p-3 border-0 shadow-sm" style="background: linear-gradient(135deg,#f0f7ff,#ffffff); border-left: 6px solid #0d6efd;">
+                    <h5 class="section-title d-flex align-items-center">
+                        <i class="fa-solid fa-robot text-primary me-2"></i> AIによるおすすめアクション
+                    </h5>
+                    <p class="text-muted small mb-3">
+                        社内用に研究されたAI機能が勤務データやタスク進捗を分析し、優先度の高いアクションを提示します。
+                    </p>
+                    ${recommendedActions.map(r => `
+                        <div class="activity-item d-flex justify-content-between align-items-center p-2 mb-2 rounded" style="background:#f8f9fa;">
+                        <div>
+                            <i class="fa-solid fa-lightbulb text-warning me-1"></i>
+                            <strong>${r.title}</strong> - ${r.description}
+                        </div>
+                        <a href="${r.link}" class="btn btn-sm btn-outline-primary">確認</a>
+                        </div>
+                    `).join('')}
+                    </div>
+                </div>
+                </div>
+                <div class="row g-3">
+                    <!-- ミニカレンダー・勤務状況 -->
+                    <div class="col-md-12">
+                        <div class="card p-3">
+                            <h5 class="section-title">今月の勤務状況</h5>
+                                <div style="display:grid; grid-template-columns: repeat(7, 1fr); gap:3px; font-size:0.75rem;">
+                                ${monthCalendar.map(d => {
+                                    const isWeekend = new Date(d.date).getDay() === 0 || new Date(d.date).getDay() === 6;
+                                    const bgColor = d.type==='work' ? '#e6f4ea' : (d.type==='leave' ? '#fbeaea' : isWeekend ? '#f0f0f0' : '#fff');
+                                    const overtimeText = d.overtime ? `+${d.overtime}h` : '';
+                                    return `<div style="padding:6px; border-radius:4px; background:${bgColor}; cursor:pointer;" title="${d.date} ${overtimeText}">
+                                            <div>${d.date.slice(-2)}</div>
+                                            <div style="font-size:0.65rem; color:#555;">${overtimeText}</div>
+                                            </div>`;
+                                }).join('')}
+                                </div>
+                            <div class="mt-2" style="font-size:0.7rem;">
+                                <span style="color:#155724;">■ 出勤日</span>
+                                <span style="color:#721c24; margin-left:5px;">■ 休暇日</span>
+                                <span style="color:#6c757d; margin-left:5px;">■ 未設定</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         `);
+
     } catch (error) {
         console.error(error);
         res.status(500).send('サーバーエラー');
@@ -1398,7 +1583,9 @@ input, select, textarea { padding:8px; border-radius:6px; border:1px solid #ccc;
 <a href="/attendance-main"><i class="fa-solid fa-business-time"></i>勤怠管理</a>
 <a href="/goals"><i class="fa-solid fa-bullseye"></i>目標設定管理</a>
 <a href="/hr"><i class="fa-solid fa-users"></i>人事管理</a>
-<a href="/leave/apply"><i class="fa-solid fa-plane-departure"></i>休暇管理</a>
+<a href="/leave/my-requests"><i class="fa-solid fa-plane-departure"></i>休暇管理</a>
+<a href="/leave/apply"><i class="fa-solid fa-yen-sign"></i>給与管理</a>
+<a href="/leave/apply"><i class="fa-solid fa-comments"></i>社内掲示板</a>
 ${req.session.isAdmin ? `<a href="/admin"><i class="fa-solid fa-user-shield"></i>管理者メニュー</a>` : ''}
 <div style="margin-top:auto;">
 <a href="/change-password"><i class="fa-solid fa-key"></i>パスワード変更</a>
@@ -1414,7 +1601,6 @@ ${req.session.isAdmin ? `<a href="/admin"><i class="fa-solid fa-user-shield"></i
 </html>
     `);
 }
-
 
 // 目標設定管理画面
 const Goal = mongoose.model('Goal', goalSchema);
@@ -1624,7 +1810,7 @@ app.post('/goals/evaluate/:id', requireLogin, async (req,res)=>{
     res.redirect('/goals');
 });
 
-// 2次承認（上司）
+// 2次承認
 app.get('/goals/reject2/:id', requireLogin, async (req, res) => {
     const goal = await Goal.findById(req.params.id);
     if (!goal) return res.status(404).send("目標が見つかりません");
@@ -1661,7 +1847,7 @@ app.post('/goals/reject2/:id', requireLogin, async (req, res) => {
     res.redirect('/goals/approval');
 });
 
-// 二次承認（上司）
+// 二次承認
 app.get('/goals/approve2/:id', requireLogin, async (req, res) => {
     const employee = await Employee.findOne({ userId: req.session.user._id });
     if (!employee) return res.status(404).send('社員情報が見つかりません');
@@ -1737,7 +1923,6 @@ app.get('/goals/edit/:id', requireLogin, async (req, res) => {
     renderPage(req, res, '目標編集', '目標編集画面', html);
 });
 
-
 app.get('/goals/detail/:id', requireLogin, async (req, res) => {
     const goal = await Goal.findById(req.params.id)
         .populate('ownerId')
@@ -1802,7 +1987,6 @@ app.get('/goals/detail/:id', requireLogin, async (req, res) => {
 
     renderPage(req, res, '目標詳細', '目標詳細画面', html);
 });
-
 
 // 目標編集 POST
 app.post('/goals/edit/:id', requireLogin, async (req, res) => {
@@ -1914,58 +2098,146 @@ app.get('/goals/approval', requireLogin, async (req, res) => {
 
 // 人事管理画面
 app.get('/hr', requireLogin, async (req, res) => {
-    const employees = await Employee.find();
+    try {
+        const user = await User.findById(req.session.userId);
+        const employee = await Employee.findOne({ userId: user._id });
+        req.session.user = user;
+        req.session.employee = employee;
 
-    const html = `
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-        <div class="container mt-4">
-        <h2>人事管理ダッシュボード</h2>
+        // サンプルデータ
+        const pendingLeaves = 2;
+        const teamSize = 8;
+        const tasksIncomplete = 5;
+        const overtimeHours = 12;
+        const payrollPending = 3;
 
-        <div class="mb-3">
-            <a href="/hr/add" class="btn btn-primary me-2">社員追加</a>
-            <a href="/hr/statistics" class="btn btn-info me-2">統計確認</a>
-            <a href="/hr/export" class="btn btn-success">CSV出力</a>
-        </div>
+        renderPage(req, res, '人事管理画面', `${employee.name} さん、こんにちは`, `
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+            <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+            <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+            <style>
+                body { font-family: 'Roboto', sans-serif; background:#f5f6fa; }
+                .card { border-radius: 15px; transition: transform 0.2s; }
+                .card:hover { transform: translateY(-5px); }
+                .card-icon { font-size: 2.5rem; }
+                .table thead { background:#f0f0f0; }
+                .gradient-primary { background: linear-gradient(135deg, #6a11cb, #2575fc); color:white; }
+                .gradient-success { background: linear-gradient(135deg, #43e97b, #38f9d7); color:white; }
+                .gradient-warning { background: linear-gradient(135deg, #f7971e, #ffd200); color:white; }
+                .gradient-info { background: linear-gradient(135deg, #36d1dc, #5b86e5); color:white; }
+                .gradient-secondary { background: linear-gradient(135deg, #bdc3c7, #2c3e50); color:white; }
+            </style>
 
-        <table class="table table-striped table-hover">
-        <thead class="table-light">
-        <tr>
-            <th>写真</th>
-            <th>氏名</th>
-            <th>部署</th>
-            <th>役職</th>
-            <th>入社日</th>
-            <th>有給残日数</th>
-            <th>操作</th>
-        </tr>
-        </thead>
-        <tbody>
-            ${employees.map(e => `
-                <tr>
-                    <td>${e.photo}</td>
-                    <td>${e.name}</td>
-                    <td>${e.department}</td>
-                    <td>${e.position}</td>
-                    <td>${e.joinDate ? e.joinDate.toISOString().substring(0,10) : '-'}</td>
-                    <td>${e.paidLeave || 0}</td>
-                    <td>
-                        <a href="/hr/edit/${e._id}" class="btn">編集</a> |
-                        <a href="/hr/delete/${e._id}" class="btn">削除</a> |
-                        <a href="/hr/payroll/${e._id}" class="btn">給与計算</a> |
-                        <a href="/hr/leave/${e._id}" class="btn">有給更新</a> |
-                        <form action="/hr/photo/${e._id}" method="POST" enctype="multipart/form-data" style="display:inline;">
-                            <input type="file" name="photo" style="width:100px;">
-                            <button type="submit" class="btn">写真アップロード</button>
-                        </form>
-                    </td>
-                </tr>
-            `).join('')}
-        </tbody>
-        </table>
-    `;
-    renderPage(req, res, '人事管理', '人事管理画面', html);
+            <div class="container mt-4">
+                <p>従業員ID: ${employee.employeeId} ｜ 部署: ${employee.department}</p>
+
+                <!-- 上段サマリー -->
+                <div class="row g-3 mt-3">
+                    <div class="col-md-2">
+                        <div class="card gradient-primary text-center shadow-sm p-3">
+                            <i class="fa-solid fa-clock card-icon"></i>
+                            <h6 class="mt-2">今月残業</h6>
+                            <p>${overtimeHours}時間</p>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="card gradient-warning text-center shadow-sm p-3">
+                            <i class="fa-solid fa-plane-departure card-icon"></i>
+                            <h6 class="mt-2">未承認休暇</h6>
+                            <p>${pendingLeaves}件</p>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="card gradient-info text-center shadow-sm p-3">
+                            <i class="fa-solid fa-users card-icon"></i>
+                            <h6 class="mt-2">チーム人数</h6>
+                            <p>${teamSize}名</p>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="card gradient-success text-center shadow-sm p-3">
+                            <i class="fa-solid fa-tasks card-icon"></i>
+                            <h6 class="mt-2">未完了タスク</h6>
+                            <p>${tasksIncomplete}件</p>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="card gradient-secondary text-center shadow-sm p-3">
+                            <i class="fa-solid fa-yen-sign card-icon"></i>
+                            <h6 class="mt-2">未処理給与</h6>
+                            <p>${payrollPending}件</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 中段: 機能カード -->
+                <div class="row g-3 mt-4">
+                    ${[
+                        { title: '勤怠管理', icon: 'fa-business-time', color: 'primary', link: '/attendance-main' },
+                        { title: '目標設定管理', icon: 'fa-bullseye', color: 'success', link: '/goals' },
+                        { title: '人事管理', icon: 'fa-users', color: 'info', link: '/hr' },
+                        { title: '休暇管理', icon: 'fa-plane-departure', color: 'warning', link: '/leave/apply' },
+                        { title: '給与管理', icon: 'fa-yen-sign', color: 'secondary', link: '/hr/payroll' },
+                        { title: '社内掲示板', icon: 'fa-comments', color: 'dark', link: '/board' },
+                        { title: '社員写真管理', icon: 'fa-image', color: 'secondary', link: '/hr/photo' },
+                        { title: '設備予約', icon: 'fa-door-closed', color: 'info', link: '/facility' }
+                    ].map(c => `
+                        <div class="col-md-3">
+                            <div class="card shadow-sm text-center h-100 p-3">
+                                <i class="fa-solid ${c.icon} card-icon text-${c.color}"></i>
+                                <h5 class="mt-2">${c.title}</h5>
+                                <a href="${c.link}" class="btn btn-${c.color} mt-2">確認</a>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <!-- 下段: 最新情報＋グラフ -->
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <h5>最新休暇申請</h5>
+                        <table class="table table-striped shadow-sm">
+                            <thead>
+                                <tr><th>社員名</th><th>休暇日</th><th>状態</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>山田 太郎</td><td>2025-09-05</td><td>申請中</td></tr>
+                                <tr><td>鈴木 花子</td><td>2025-09-10</td><td>承認済</td></tr>
+                                <tr><td>佐藤 次郎</td><td>2025-09-12</td><td>申請中</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>残業時間推移</h5>
+                        <canvas id="overtimeChart"></canvas>
+                        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                        <script>
+                            const ctx = document.getElementById('overtimeChart').getContext('2d');
+                            new Chart(ctx, {
+                                type: 'line',
+                                data: {
+                                    labels: ['1日','2日','3日','4日','5日','6日','7日'],
+                                    datasets: [{
+                                        label: '残業時間',
+                                        data: [1,2,1.5,2,1,3,2],
+                                        borderColor: '#007bff',
+                                        backgroundColor: 'rgba(0,123,255,0.2)',
+                                        tension: 0.3
+                                    }]
+                                },
+                                options: { responsive:true, plugins:{ legend:{ display:false } } }
+                            });
+                        </script>
+                    </div>
+                </div>
+            </div>
+        `);
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('サーバーエラー');
+    }
 });
-
 
 // 社員追加
 app.get('/hr/add', requireLogin, (req, res) => {
