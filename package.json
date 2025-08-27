@@ -18,6 +18,8 @@
     "html-pdf": "^3.0.1",
     "moment-timezone": "^0.5.48",
     "mongoose": "^8.14.2",
-    "nodemailer": "^7.0.3"
+    "multer": "^2.0.2",
+    "nodemailer": "^7.0.3",
+    "twilio": "^5.7.1"
   }
 }
