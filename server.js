@@ -18,19 +18,9 @@ const transporter = nodemailer.createTransport({
   secure: false,             // 465ならtrue, 587ならfalse
   auth: {
     user: 'apikey', // ここは固定で 'apikey'
-    pass: process.env.SENDGRID_API_KEY // ここが.envで管理したAPIキー
-  }
+    pass: process.env.SENDGRID_API_KEY
+}
 });
-
-//   const transporter = nodemailer.createTransport({
-//     host: 'mail1022.onamae.ne.jp',
-//     port: 465, // SSL接続あり
-//     secure: true, // ポート465ならtrue
-//     auth: {
-//       user: 'info@dxpro-sol.com',
-//       pass: 'dxpro-sol2024'
-//     }
-//   });
 
   // テスト送信
 sgMail.send({
@@ -47,6 +37,24 @@ sgMail.send({
   console.error('メール送信エラー:', error.response?.body?.errors || error.message || error);
 });
 
+  app.get('/test-send-mail', async (req, res) => {
+    try {
+      const mailOptions = {
+        from: 'info@dxpro-sol.com',
+        to: 'xogns00089@gmail.com',
+        subject: '📧 テストメール from DXPRO',
+        text: 'このメールはシステムからのテスト送信です。',
+      };
+  
+      const info = await transporter.sendMail(mailOptions);
+      console.log('✅ メール送信成功:', info);
+      res.send('✅ メール送信に成功しました。');
+    } catch (error) {
+      console.error('❌ メール送信失敗:', error);
+      res.status(500).send('❌ メール送信に失敗しました。');
+    }
+  });
+
   const generatePdf = (html, options = {}) => {
     return new Promise((resolve, reject) => {
       pdf.create(html, options).toBuffer((err, buffer) => {
@@ -57,7 +65,8 @@ sgMail.send({
   };
   
 // MongoDB接続
-const MONGODB_URI = 'mongodb+srv://dxprosol:kim650323@dxpro.ealx5.mongodb.net/attendance-system?retryWrites=true&w=majority';
+const MONGODB_URI = process.env.MONGODB_URI;
+console.log('MONGODB_URI:', MONGODB_URI);
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('MongoDB接続成功'))
   .catch(err => console.error('MongoDB接続エラー:', err));
@@ -3677,13 +3686,14 @@ app.get('/admin/approve-request/:id', requireLogin, isAdmin, async (req, res) =>
                 <head>
                     <title>勤怠表印刷 - ${employee.name}</title>
                     <meta charset="UTF-8">
+                    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP&display=swap" rel="stylesheet">
                     <style>
-                        body { font-family: Arial, sans-serif; padding: 20px; }
+                        body { font-family: 'Noto Sans JP', sans-serif; padding: 10px; }
                         .print-header { text-align: center; margin-bottom: 30px; }
                         .print-title { font-size: 24px; font-weight: bold; margin-bottom: 10px; }
                         .employee-info { margin-bottom: 20px; }
-                        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                        table { width: 100%; font-size: 11px; border-collapse: collapse; margin-bottom: 20px; }
+                        th, td { border: 1px solid #ddd; padding: 3px; text-align: left; }
                         th { background-color: #f2f2f2; }
                         .total-hours { font-weight: bold; margin-top: 20px; }
                         .print-footer { margin-top: 50px; text-align: right; }
@@ -3756,17 +3766,15 @@ app.get('/admin/approve-request/:id', requireLogin, isAdmin, async (req, res) =>
             // 6. 이메일 발송
             const mailOptions = {
                 from: process.env.EMAIL_USER || 'info@dxpro-sol.com',
-                to: 'xogns00089@gmail.com',
-
-                // to: 'nakamura-s-office@bg8.so-net.ne.jp, msatoh@bg8.so-net.ne.jp',
-                cc: 'kim_taehoon@dxpro-sol.com',
+                to: 'nakamura-s-office@bg8.so-net.ne.jp, msatoh@bg8.so-net.ne.jp',
+                cc: 'kim_taehoon@dxpro-sol.com, otomo_kento@dxpro-sol.com',
                 subject: `【勤怠報告】${employee.name}様の${request.year}年${request.month}月分勤怠情報のご報告`,
                 text:
             `佐藤公臣税理士事務所  
             佐藤 様
             
             いつも大変お世話になっております。  
-            合同会社DXPRO SOLUTIONSの金です。
+            合同会社DXPRO SOLUTIONSの人事担当です。
             
             このたび、${employee.name}さんの${request.year}年${request.month}月分の勤怠情報につきまして、
             以下の通りご報告申し上げます。
@@ -3837,9 +3845,9 @@ https://www.dxpro-sol.com/
             
 
             await transporter.sendMail(mailOptions);
-            console.log(`근태 승인 이메일 발송 완료: ${employee.name} - ${request.year}년 ${request.month}월`);
+            console.log(`勤怠メール送信完了: ${employee.name} - ${request.year}年 ${request.month}月`);
         } catch (emailError) {
-            console.error('이메일 발송 중 오류:', emailError);
+            console.error('メール発信中にエラー発生:', emailError);
             // 이메일 실패해도 승인은 정상 처리
         }
 
