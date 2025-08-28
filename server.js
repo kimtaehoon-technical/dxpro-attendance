@@ -91,12 +91,30 @@ const AttendanceSchema = new mongoose.Schema({
     lunchEnd: { type: Date },
     workingHours: { type: Number },
     totalHours: { type: Number },
+    projectId: { type: String, required: true },  // 案件IDを必須に
+    projectName: { type: String },  // 案件名を追加
+    taskDescription: { type: String },  // 作業内容
     status: { type: String, enum: ['正常', '遅刻', '早退', '欠勤'], default: '正常' },
     isConfirmed: { type: Boolean, default: false }, // 확정 상태
     confirmedAt: { type: Date }, // 확정 일시
     confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // 확정한 관리자
     notes: { type: String } // 비고 필드 추가
 });
+
+// 案件マスタスキーマ
+const ProjectSchema = new mongoose.Schema({
+    projectId: { type: String, required: true, unique: true },
+    projectName: { type: String, required: true },
+    client: { type: String },
+    startDate: { type: Date },
+    endDate: { type: Date },
+    status: { type: String, enum: ['進行中', '完了', '保留'], default: '進行中' },
+    assignedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Employee' }],
+    description: { type: String },
+    createdAt: { type: Date, default: Date.now }
+});
+
+const Project = mongoose.model('Project', ProjectSchema);
 
 // 승인 요청 모델 추가
 const ApprovalRequestSchema = new mongoose.Schema({
@@ -273,7 +291,7 @@ async function createAdminUser() {
 
 // ルート設定
 app.get('/', requireLogin, (req, res) => {
-    res.redirect('/dashboard');
+    res.redirect('/attendance-main');
 });
 
 // ログインページ
@@ -598,7 +616,7 @@ app.post('/login', async (req, res) => {
         req.session.username = user.username;
         
         console.log('ログイン成功:', user.username, '管理者:', user.isAdmin);
-        return res.redirect('/dashboard');
+        return res.redirect('/attendance-main');
     } catch (error) {
         console.error('ログインエラー:', error);
         res.redirect('/login?error=server_error');
@@ -719,7 +737,7 @@ app.get('/change-password', requireLogin, (req, res) => {
                     <button type="submit" class="password-btn">パスワードを変更</button>
                 </form>
                 
-                <a href="/dashboard" class="back-link">ダッシュボードに戻る</a>
+                <a href="/attendance-main" class="back-link">ダッシュボードに戻る</a>
             </div>
         </body>
         </html>
@@ -1160,7 +1178,7 @@ app.get('/attendance-main', requireLogin, async (req, res) => {
         const todayAttendance = await Attendance.findOne({
             userId: user._id,
             date: { $gte: today, $lt: tomorrow }
-        });
+        }).sort({ checkIn: 1 });
 
         const firstDayOfMonth = moment().tz('Asia/Tokyo').startOf('month').toDate();
         const lastDayOfMonth = moment().tz('Asia/Tokyo').endOf('month').toDate();
@@ -1169,6 +1187,11 @@ app.get('/attendance-main', requireLogin, async (req, res) => {
             userId: user._id,
             date: { $gte: firstDayOfMonth, $lte: lastDayOfMonth }
         }).sort({ date: 1 });
+        
+        const userProjects = await Project.find({
+            assignedUsers: req.session.userId,
+            status: '進行中'
+        });
 
         res.send(`
             <!DOCTYPE html>
@@ -1192,12 +1215,21 @@ app.get('/attendance-main', requireLogin, async (req, res) => {
                     <div id="current-time" class="clock"></div>
                     <h2>${employee.name}さんの勤怠管理</h2>
                     <p>従業員ID: ${employee.employeeId} | 部署: ${employee.department}</p>
-                    <a href="/dashboard" class="btn">🏠 ダッシュボードに戻る</a>
+                    <a href="/dashboard" class="btn">🏠 総合システムのダッシュボードに戻る</a>
+                    <div class="project-selection">
+                        <h3>案件選択</h3>
+                        <select id="projectSelect">
+                            <option value="">案件を選択してください</option>
+                            ${userProjects.map(project => `
+                                <option value="${project.projectId}">${project.projectName}</option>
+                            `).join('')}
+                        </select>
+                    </div>                    
                     <div class="attendance-controls">
                         <div class="attendance-header">
                             <h3>本日の勤怠</h3>
                             <a href="/add-attendance" class="btn add-btn">打刻追加</a>
-                        </div>
+                        </div>                        
                         ${todayAttendance ? `
                             <p>出勤: ${todayAttendance.checkIn ? moment(todayAttendance.checkIn).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</p>
                             ${todayAttendance.lunchStart ? `
@@ -1237,7 +1269,18 @@ app.get('/attendance-main', requireLogin, async (req, res) => {
                             </form>
                         `}
                     </div>
-                    
+                    <script>
+                        // 案件選択時の処理
+                        document.getElementById('projectSelect').addEventListener('change', function(e) {
+                            const projectId = e.target.value;
+                            const projectName = e.target.options[e.target.selectedIndex].text;
+                            document.getElementById('selectedProject').textContent = projectName;
+                            
+                            // 選択した案件IDをセッションストレージに保存
+                            sessionStorage.setItem('selectedProjectId', projectId);
+                            sessionStorage.setItem('selectedProjectName', projectName);
+                        });
+                    </script>
                     <div class="monthly-attendance">
                         <h3>今月の勤怠記録</h3>
                         <div class="monthly-actions">
@@ -1283,6 +1326,7 @@ app.get('/attendance-main', requireLogin, async (req, res) => {
                             <a href="/admin/register-employee" class="btn admin-btn">従業員登録</a>
                             <a href="/admin/monthly-attendance" class="btn admin-btn">月別勤怠照会</a>
                             <a href="/admin/approval-requests" class="btn admin-btn">承認リクエスト一覧</a>
+                            <a href="/admin/projects" class="btn admin-btn">案件管理</a>
                         </div>
                     ` : ''}
                     <a href="/change-password" class="btn">パスワード変更</a>
@@ -2663,7 +2707,7 @@ app.post('/hr/photo/:id', requireLogin, upload.single('photo'), async (req, res)
 app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
     try {
         const attendance = await Attendance.findById(req.params.id);
-        if (!attendance) return res.redirect('/dashboard');
+        if (!attendance) return res.redirect('/attendance-main');
 
         // 承認リクエスト中か確認
         const year = attendance.date.getFullYear();
@@ -2819,7 +2863,7 @@ app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
         `);
     } catch (error) {
         console.error(error);
-        res.redirect('/dashboard');
+        res.redirect('/attendance-main');
     }
 });
 
@@ -2827,7 +2871,7 @@ app.get('/edit-attendance/:id', requireLogin, async (req, res) => {
 app.post('/update-attendance/:id', requireLogin, async (req, res) => {
     try {
         const attendance = await Attendance.findById(req.params.id);
-        if (!attendance) return res.redirect('/dashboard');
+        if (!attendance) return res.redirect('/attendance-main');
         
         // 확정된 근태는 수정 불가
         if (attendance.isConfirmed) {
@@ -2887,10 +2931,10 @@ app.post('/update-attendance/:id', requireLogin, async (req, res) => {
             status: attendance.status
         });
         
-        res.redirect('/dashboard');
+        res.redirect('/attendance-main');
     } catch (error) {
         console.error('勤怠更新エラー:', error);
-        res.redirect('/dashboard');
+        res.redirect('/attendance-main');
     }
 });
 
@@ -3062,7 +3106,7 @@ app.post('/save-attendance', requireLogin, async (req, res) => {
                     <h2>エラー</h2>
                     <p>選択した日付には既に勤怠記録が存在します</p>
                     <a href="/edit-attendance/${existingAttendance._id}" class="btn">編集ページへ</a>
-                    <a href="/dashboard" class="btn">ダッシュボードに戻る</a>
+                    <a href="/attendance-main" class="btn">ダッシュボードに戻る</a>
                 </div>
             `);
         }
@@ -3093,7 +3137,7 @@ app.post('/save-attendance', requireLogin, async (req, res) => {
         }
 
         await attendance.save();
-        res.redirect('/dashboard');
+        res.redirect('/attendance-main');
     } catch (error) {
         console.error('打刻保存エラー:', error);
         res.status(500).send('打刻保存中にエラーが発生しました');
@@ -3104,6 +3148,11 @@ app.post('/save-attendance', requireLogin, async (req, res) => {
 app.post('/checkin', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
+        const projectId = req.body.projectId || sessionStorage.getItem('selectedProjectId');
+        
+        if (!projectId) {
+            return res.status(400).send('案件が選択されていません');
+        }
 
         // 「日本時間の今」をUTCで保存
         const now = new Date();
@@ -3112,19 +3161,22 @@ app.post('/checkin', requireLogin, async (req, res) => {
 
         const existingRecord = await Attendance.findOne({
             userId: user._id,
-            date: { $gte: todayJST, $lt: tomorrowJST }
+            date: { $gte: todayJST, $lt: tomorrowJST },
+            projectId: projectId,
+            checkOut: { $exists: false }
         });
-        if (existingRecord) return res.redirect('/dashboard');
+        if (existingRecord) return res.redirect('/attendance-main');
 
         const attendance = new Attendance({
             userId: user._id,
             date: todayJST,
+            projectId: projectId,
             checkIn: now, // 現在時刻（UTC）
             status: now.getHours() >= 9 ? '遅刻' : '正常'
         });
 
         await attendance.save();
-        res.redirect('/dashboard');
+        res.redirect('/attendance-main');
     } catch (error) {
         console.error(error);
         res.status(500).send('出勤処理中にエラーが発生しました');
@@ -3145,11 +3197,11 @@ app.post('/start-lunch', requireLogin, async (req, res) => {
             date: { $gte: todayJST, $lt: tomorrowJST }
         });
 
-        if (!attendance) return res.redirect('/dashboard');
+        if (!attendance) return res.redirect('/attendance-main');
 
         attendance.lunchStart = now;
         await attendance.save();
-        res.redirect('/dashboard');
+        res.redirect('/attendance-main');
     } catch (error) {
         console.error(error);
         res.status(500).send('昼休み開始処理中にエラーが発生しました');
@@ -3170,11 +3222,11 @@ app.post('/end-lunch', requireLogin, async (req, res) => {
             date: { $gte: todayJST, $lt: tomorrowJST }
         });
 
-        if (!attendance || !attendance.lunchStart) return res.redirect('/dashboard');
+        if (!attendance || !attendance.lunchStart) return res.redirect('/attendance-main');
 
         attendance.lunchEnd = now;
         await attendance.save();
-        res.redirect('/dashboard');
+        res.redirect('/attendance-main');
     } catch (error) {
         console.error(error);
         res.status(500).send('昼休み終了処理中にエラーが発生しました');
@@ -3195,7 +3247,7 @@ app.post('/checkout', requireLogin, async (req, res) => {
             date: { $gte: todayJST, $lt: tomorrowJST }
         });
 
-        if (!attendance) return res.redirect('/dashboard');
+        if (!attendance) return res.redirect('/attendance-main');
 
         attendance.checkOut = now;
 
@@ -3214,7 +3266,7 @@ app.post('/checkout', requireLogin, async (req, res) => {
         if (attendance.workingHours < 8) attendance.status = '早退';
 
         await attendance.save();
-        res.redirect('/dashboard');
+        res.redirect('/attendance-main');
     } catch (error) {
         console.error(error);
         res.status(500).send('退勤処理中にエラーが発生しました');
@@ -3277,7 +3329,7 @@ app.get('/admin/register-employee', requireLogin, isAdmin, (req, res) => {
                     </div>
                     <button type="submit" class="btn">登録</button>
                 </form>
-                <a href="/dashboard" class="btn">ダッシュボードに戻る</a>
+                <a href="/attendance-main" class="btn">ダッシュボードに戻る</a>
             </div>
         </body>
         </html>
@@ -3556,7 +3608,7 @@ app.get('/admin/monthly-attendance', requireLogin, isAdmin, async (req, res) => 
                         </div>
                       `;
                     }).join('')}
-                    <a href="/dashboard" class="btn">ダッシュボードに戻る</a>
+                    <a href="/attendance-main" class="btn">ダッシュボードに戻る</a>
                 </div>
             </body>
             </html>
@@ -3568,7 +3620,7 @@ app.get('/admin/monthly-attendance', requireLogin, isAdmin, async (req, res) => 
                 <h2>エラー</h2>
                 <p>データ照会中にエラーが発生しました</p>
                 ${process.env.NODE_ENV === 'development' ? `<pre>${error.message}</pre>` : ''}
-                <a href="/dashboard" class="btn">ダッシュボードに戻る</a>
+                <a href="/attendance-main" class="btn">ダッシュボードに戻る</a>
             </div>
         `);
     }
@@ -3851,16 +3903,30 @@ app.get('/my-monthly-attendance', requireLogin, async (req, res) => {
         const startDate = new Date(year, month - 1, 1);
         const endDate = new Date(year, month, 0);
         
+        // 案件情報をpopulateして取得
         const attendances = await Attendance.find({
             userId: user._id,
             date: { $gte: startDate, $lte: endDate }
-        }).sort({ date: 1 });
+        }).populate('projectId', 'projectName projectId').sort({ date: 1, projectId: 1 });
+        
+        // 案件ごとにグループ化
+        const groupedByProject = {};
+        attendances.forEach(att => {
+            const projectKey = att.projectId ? 
+                `${att.projectId.projectName} (${att.projectId.projectId})` : 
+                '案件未設定';
+            
+            if (!groupedByProject[projectKey]) {
+                groupedByProject[projectKey] = [];
+            }
+            groupedByProject[projectKey].push(att);
+        });
 
         const approvalRequest = await ApprovalRequest.findOne({
             userId: user._id,
             year: year,
             month: month
-        });        
+        });
 
         // 入社月と照会月が同じか確認
         const isJoinMonth = employee.joinDate.getFullYear() === year && 
@@ -3894,6 +3960,33 @@ app.get('/my-monthly-attendance', requireLogin, async (req, res) => {
                         color: #721c24;
                         border-left: 4px solid #dc3545;
                     }
+                    .project-section {
+                        margin-bottom: 30px;
+                        border: 1px solid #ddd;
+                        border-radius: 8px;
+                        padding: 15px;
+                        background: #f9f9f9;
+                    }
+                    .project-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        margin-bottom: 15px;
+                        padding-bottom: 10px;
+                        border-bottom: 2px solid #3498db;
+                    }
+                    .project-total {
+                        text-align: right;
+                        font-weight: bold;
+                        margin-top: 10px;
+                        padding: 10px;
+                        background: #e8f4fc;
+                        border-radius: 4px;
+                    }
+                    .note-cell {
+                        max-width: 200px;
+                        word-wrap: break-word;
+                    }
                 </style>                
                 <script>
                     function updateClock() {
@@ -3905,6 +3998,7 @@ app.get('/my-monthly-attendance', requireLogin, async (req, res) => {
                     window.onload = updateClock;
                     
                     function requestApproval(year, month) {
+                        // 全案件の確認状態をチェック
                         const confirmed = ${attendances.some(a => a.isConfirmed)};
                         if (confirmed) {
                             return alert('この月の勤怠は既に承認済みです');
@@ -3985,56 +4079,71 @@ app.get('/my-monthly-attendance', requireLogin, async (req, res) => {
                     <div class="actions">
                         <button onclick="requestApproval(${year}, ${month})" class="btn">承認リクエスト</button>
                         <button onclick="printAttendance(${year}, ${month})" class="btn print-btn">勤怠表印刷</button>
-                    </div>                    
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>日付</th>
-                                <th>出勤</th>
-                                <th>退勤</th>
-                                <th>昼休憩</th>
-                                <th>勤務時間</th>
-                                <th>状態</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${attendances.map(att => `
-                                <tr>
-                                    <td>${moment(att.date).tz('Asia/Tokyo').format('YYYY/MM/DD')}</td>
-                                    <td>${att.checkIn ? moment(att.checkIn).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
-                                    <td>${att.checkOut ? moment(att.checkOut).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
-                                    <td>
-                                        ${att.lunchStart ? moment(att.lunchStart).tz('Asia/Tokyo').format('HH:mm:ss') : '-'} ～
-                                        ${att.lunchEnd ? moment(att.lunchEnd).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}
-                                    </td>
-                                    <td>${att.workingHours || '-'}時間</td>
-                                    <td>${att.status} ${att.isConfirmed ? '<span class="confirmed-badge">承認済み</span>' : ''}</td>
-                                    <td>
-                                        <a href="/edit-attendance/${att._id}" class="btn edit-btn" 
-                                           ${att.isConfirmed || (approvalRequest && approvalRequest.status === 'pending') ? 'disabled style="opacity:0.5; pointer-events:none;"' : ''}>
-                                            編集
-                                        </a>
-                                        <form action="/delete-attendance/${att._id}" method="POST" style="display:inline;" 
-                                            onsubmit="return confirm('この打刻記録を削除しますか？');">
-                                            <button type="submit" class="btn delete-btn"
-                                                ${att.isConfirmed || (approvalRequest && approvalRequest.status === 'pending') ? 'disabled style="opacity:0.5; pointer-events:none;"' : ''}>
-                                                削除
-                                            </button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                            ${attendances.length === 0 ? `
-                                <tr>
-                                    <td colspan="7">該当月の勤怠記録がありません</td>
-                                </tr>
-                            ` : ''}
-                        </tbody>
-                    </table>
+                    </div>
+                    
+                    ${Object.entries(groupedByProject).map(([projectName, projectAttendances]) => {
+                        const totalHours = projectAttendances.reduce((sum, att) => sum + (att.workingHours || 0), 0);
+                        return `
+                            <div class="project-section">
+                                <div class="project-header">
+                                    <h3>${projectName}</h3>
+                                    <span class="project-hours">合計: ${totalHours.toFixed(1)}時間</span>
+                                </div>
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>日付</th>
+                                            <th>出勤</th>
+                                            <th>退勤</th>
+                                            <th>昼休憩</th>
+                                            <th>勤務時間</th>
+                                            <th>状態</th>
+                                            <th>備考</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${projectAttendances.map(att => `
+                                            <tr>
+                                                <td>${moment(att.date).tz('Asia/Tokyo').format('YYYY/MM/DD')}</td>
+                                                <td>${att.checkIn ? moment(att.checkIn).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
+                                                <td>${att.checkOut ? moment(att.checkOut).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
+                                                <td>
+                                                    ${att.lunchStart ? moment(att.lunchStart).tz('Asia/Tokyo').format('HH:mm:ss') : '-'} ～
+                                                    ${att.lunchEnd ? moment(att.lunchEnd).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}
+                                                </td>
+                                                <td>${att.workingHours || '-'}時間</td>
+                                                <td>${att.status} ${att.isConfirmed ? '<span class="confirmed-badge">承認済み</span>' : ''}</td>
+                                                <td class="note-cell">${att.notes || '-'}</td>
+                                                <td>
+                                                    <a href="/edit-attendance/${att._id}" class="btn edit-btn" 
+                                                       ${att.isConfirmed || (approvalRequest && approvalRequest.status === 'pending') ? 'disabled style="opacity:0.5; pointer-events:none;"' : ''}>
+                                                        編集
+                                                    </a>
+                                                    <form action="/delete-attendance/${att._id}" method="POST" style="display:inline;" 
+                                                        onsubmit="return confirm('この打刻記録を削除しますか？');">
+                                                        <button type="submit" class="btn delete-btn"
+                                                            ${att.isConfirmed || (approvalRequest && approvalRequest.status === 'pending') ? 'disabled style="opacity:0.5; pointer-events:none;"' : ''}>
+                                                            削除
+                                                        </button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        `;
+                    }).join('')}
+                    
+                    ${attendances.length === 0 ? `
+                        <div class="no-data">
+                            <p>該当月の勤怠記録がありません</p>
+                        </div>
+                    ` : ''}
                     
                     <div class="navigation">
-                        <a href="/dashboard" class="btn">ダッシュボードに戻る</a>
+                        <a href="/attendance-main" class="btn">ダッシュボードに戻る</a>
                     </div>
                 </div>
             </body>
@@ -4118,6 +4227,263 @@ app.post('/request-approval', requireLogin, async (req, res) => {
     } catch (error) {
         console.error(error);
         res.json({ success: false, message: '承認リクエスト中にエラーが発生しました' });
+    }
+});
+
+// 管理者用案件管理ページ追加
+// 案件追加ページ
+app.get('/admin/add-project', requireLogin, isAdmin, async (req, res) => {
+    try {
+        // 全従業員を取得（担当者選択用）
+        const employees = await Employee.find().sort({ name: 1 }); // 名前順で並べると見やすい
+        console.log('全従業員:', employees); // 中身確認
+
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>新規案件追加</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                <link rel="stylesheet" href="/styles.css">
+                <style>
+                    .form-group {
+                        margin-bottom: 15px;
+                    }
+                    .form-group label {
+                        display: block;
+                        margin-bottom: 5px;
+                        font-weight: bold;
+                    }
+                    .form-group input, 
+                    .form-group select, 
+                    .form-group textarea {
+                        width: 100%;
+                        padding: 8px;
+                        border: 1px solid #ddd;
+                        border-radius: 4px;
+                        box-sizing: border-box;
+                    }
+                    .form-group select[multiple] {
+                        height: 120px;
+                    }
+                    .checkbox-group {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 10px;
+                    }
+                    .checkbox-item {
+                        display: flex;
+                        align-items: center;
+                        gap: 5px;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h2>新規案件追加</h2>
+                    
+                    ${req.query.success ? '<p class="success">案件が正常に追加されました</p>' : ''}
+                    ${req.query.error ? '<p class="error">案件追加中にエラーが発生しました</p>' : ''}
+                    
+                    <form action="/admin/add-project" method="POST">
+                        <div class="form-group">
+                            <label for="projectId">案件ID:</label>
+                            <input type="text" id="projectId" name="projectId" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="projectName">案件名:</label>
+                            <input type="text" id="projectName" name="projectName" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="client">クライアント名:</label>
+                            <input type="text" id="client" name="client">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="startDate">開始日:</label>
+                            <input type="date" id="startDate" name="startDate">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="endDate">終了日:</label>
+                            <input type="date" id="endDate" name="endDate">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="status">状態:</label>
+                            <select id="status" name="status" required>
+                                <option value="進行中">進行中</option>
+                                <option value="完了">完了</option>
+                                <option value="保留">保留</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="assignedUsers">担当者:</label>
+                            <select id="assignedUsers" name="assignedUsers" multiple>
+
+                                ${employees.map(e => `<option value="${e._id}">${e.name} (${e.position})</option>`).join('')}
+
+                            </select>
+                            <small>複数選択する場合はCtrlキー（MacではCommandキー）を押しながらクリック</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="description">案件説明:</label>
+                            <textarea id="description" name="description" rows="4"></textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn">案件追加</button>
+                        <a href="/admin/projects" class="btn cancel-btn">キャンセル</a>
+                    </form>
+                </div>
+            </body>
+            </html>
+        `);
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('案件追加ページの表示中にエラーが発生しました');
+    }
+});
+
+// 案件追加処理
+app.post('/admin/add-project', requireLogin, isAdmin, async (req, res) => {
+    try {
+        const { projectId, projectName, client, startDate, endDate, status, assignedUsers, description } = req.body;
+        
+        // 案件IDの重複チェック
+        const existingProject = await Project.findOne({ projectId });
+        if (existingProject) {
+            return res.redirect('/admin/add-project?error=true');
+        }
+        
+        const project = new Project({
+            projectId,
+            projectName,
+            client: client || null,
+            startDate: startDate ? new Date(startDate) : null,
+            endDate: endDate ? new Date(endDate) : null,
+            status,
+            assignedUsers: Array.isArray(assignedUsers) ? assignedUsers : [assignedUsers],
+            description: description || null
+        });
+        
+        await project.save();
+        res.redirect('/admin/add-project?success=true');
+        
+    } catch (error) {
+        console.error('案件追加エラー:', error);
+        res.redirect('/admin/add-project?error=true');
+    }
+});
+
+// 案件一覧ページ（既存のものを修正）
+app.get('/admin/projects', requireLogin, isAdmin, async (req, res) => {
+    try {
+        const projects = await Project.find().populate('assignedUsers');
+        
+        res.send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>案件管理</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                <link rel="stylesheet" href="/styles.css">
+                <style>
+                    .project-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin-top: 20px;
+                    }
+                    .project-table th,
+                    .project-table td {
+                        padding: 12px;
+                        text-align: left;
+                        border-bottom: 1px solid #ddd;
+                    }
+                    .project-table th {
+                        background-color: #f8f9fa;
+                        font-weight: bold;
+                    }
+                    .status-badge {
+                        padding: 4px 8px;
+                        border-radius: 12px;
+                        font-size: 12px;
+                        font-weight: bold;
+                    }
+                    .status-進行中 { background-color: #d4edda; color: #155724; }
+                    .status-完了 { background-color: #cce5ff; color: #004085; }
+                    .status-保留 { background-color: #fff3cd; color: #856404; }
+                    .assigned-users {
+                        max-width: 200px;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h2>案件管理</h2>
+                    
+                    <div class="actions">
+                        <a href="/admin/add-project" class="btn">新規案件追加</a>
+                        <a href="/attendance-main" class="btn">ダッシュボードに戻る</a>
+                    </div>
+                    
+                    <table class="project-table">
+                        <thead>
+                            <tr>
+                                <th>案件ID</th>
+                                <th>案件名</th>
+                                <th>クライアント</th>
+                                <th>担当者</th>
+                                <th>期間</th>
+                                <th>状態</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${projects.map(project => `
+                                <tr>
+                                    <td>${project.projectId}</td>
+                                    <td>${project.projectName}</td>
+                                    <td>${project.client || '-'}</td>
+                                    <td class="assigned-users" title="${project.assignedUsers.map(u => u.name).join(', ')}">
+                                        ${project.assignedUsers.map(u => u.name).join(', ')}
+                                    </td>
+                                    <td>
+                                        ${project.startDate ? moment(project.startDate).format('YYYY/MM/DD') : '-'} ～
+                                        ${project.endDate ? moment(project.endDate).format('YYYY/MM/DD') : '-'}
+                                    </td>
+                                    <td>
+                                        <span class="status-badge status-${project.status}">${project.status}</span>
+                                    </td>
+                                    <td>
+                                        <a href="/admin/edit-project/${project._id}" class="btn edit-btn">編集</a>
+                                        <form action="/admin/delete-project/${project._id}" method="POST" style="display:inline;">
+                                            <button type="submit" class="btn delete-btn" 
+                                                onclick="return confirm('この案件を削除しますか？')">削除</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                            ${projects.length === 0 ? `
+                                <tr>
+                                    <td colspan="7" style="text-align: center;">登録されている案件がありません</td>
+                                </tr>
+                            ` : ''}
+                        </tbody>
+                    </table>
+                </div>
+            </body>
+            </html>
+        `);
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('案件管理ページの表示中にエラーが発生しました');
     }
 });
 
@@ -4289,7 +4655,7 @@ app.get('/admin/approval-requests', requireLogin, isAdmin, async (req, res) => {
                             });
                         });
                     </script>
-                    <a href="/dashboard" class="btn">ダッシュボードに戻る</a>
+                    <a href="/attendance-main" class="btn">ダッシュボードに戻る</a>
                 </div>
             </body>
             </html>
