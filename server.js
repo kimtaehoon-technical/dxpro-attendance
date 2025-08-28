@@ -91,8 +91,6 @@ const AttendanceSchema = new mongoose.Schema({
     lunchEnd: { type: Date },
     workingHours: { type: Number },
     totalHours: { type: Number },
-    projectId: { type: String, required: true },  // 案件IDを必須に
-    projectName: { type: String },  // 案件名を追加
     taskDescription: { type: String },  // 作業内容
     status: { type: String, enum: ['正常', '遅刻', '早退', '欠勤'], default: '正常' },
     isConfirmed: { type: Boolean, default: false }, // 확정 상태
@@ -100,21 +98,6 @@ const AttendanceSchema = new mongoose.Schema({
     confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // 확정한 관리자
     notes: { type: String } // 비고 필드 추가
 });
-
-// 案件マスタスキーマ
-const ProjectSchema = new mongoose.Schema({
-    projectId: { type: String, required: true, unique: true },
-    projectName: { type: String, required: true },
-    client: { type: String },
-    startDate: { type: Date },
-    endDate: { type: Date },
-    status: { type: String, enum: ['進行中', '完了', '保留'], default: '進行中' },
-    assignedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Employee' }],
-    description: { type: String },
-    createdAt: { type: Date, default: Date.now }
-});
-
-const Project = mongoose.model('Project', ProjectSchema);
 
 // 승인 요청 모델 추가
 const ApprovalRequestSchema = new mongoose.Schema({
@@ -1161,13 +1144,13 @@ app.get('/attendance-main', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
         const employee = await Employee.findOne({ userId: user._id });
-        
+
         if (!employee) {
             return res.status(400).send(`
-                <div class="container">
+                <div style="text-align:center; padding:50px; font-family:'Segoe UI', sans-serif;">
                     <h2>エラー: 従業員情報なし</h2>
                     <p>管理者に問い合わせて従業員情報を登録してください</p>
-                    <a href="/logout" class="btn">ログアウト</a>
+                    <a href="/logout" style="display:inline-block; padding:12px 20px; background:#0984e3; color:#fff; border-radius:6px; text-decoration:none;">ログアウト</a>
                 </div>
             `);
         }
@@ -1187,49 +1170,135 @@ app.get('/attendance-main', requireLogin, async (req, res) => {
             userId: user._id,
             date: { $gte: firstDayOfMonth, $lte: lastDayOfMonth }
         }).sort({ date: 1 });
-        
-        const userProjects = await Project.find({
-            assignedUsers: req.session.userId,
-            status: '進行中'
-        });
 
-        res.send(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>勤怠システム - ${employee.name}</title>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                <link rel="stylesheet" href="/styles.css">
-                <script>
-                    function updateClock() {
-                        const now = new Date();
-                        document.getElementById('current-time').textContent = 
-                            '現在時刻: ' + now.toLocaleTimeString('ja-JP');
-                    }
-                    setInterval(updateClock, 1000);
-                    window.onload = updateClock;
-                </script>
-            </head>
-            <body>
-                <div class="container">
-                    <div id="current-time" class="clock"></div>
-                    <h2>${employee.name}さんの勤怠管理</h2>
-                    <p>従業員ID: ${employee.employeeId} | 部署: ${employee.department}</p>
-                    <a href="/dashboard" class="btn">🏠 総合システムのダッシュボードに戻る</a>
-                    <div class="project-selection">
-                        <h3>案件選択</h3>
-                        <select id="projectSelect">
-                            <option value="">案件を選択してください</option>
-                            ${userProjects.map(project => `
-                                <option value="${project.projectId}">${project.projectName}</option>
-                            `).join('')}
-                        </select>
-                    </div>                    
-                    <div class="attendance-controls">
-                        <div class="attendance-header">
-                            <h3>本日の勤怠</h3>
-                            <a href="/add-attendance" class="btn add-btn">打刻追加</a>
-                        </div>                        
+res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>勤怠システム - ${employee.name}</title>
+<style>
+body {
+    margin:0; padding:0; font-family:'Segoe UI Semilight', 'Roboto', sans-serif;
+    background: linear-gradient(135deg, #e0e0e0, #ffffff); color:#333;
+}
+.container { max-width:1500px; margin:30px auto; padding:0 20px; }
+
+.header { display:flex; justify-content:space-between; align-items:center; margin-bottom:25px; }
+.header h2 { font-size:2rem; color:#2c3e50; }
+.clock {
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: #2d3436;
+    background: rgba(255, 255, 255, 0.85);
+    padding: 16px 28px;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    min-width: 140px;
+    transition: background 0.3s ease;
+}
+
+.clock::after {
+    content: '';
+    position: absolute;
+    width: 100%; height: 100%;
+    border-radius: 16px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), inset 0 -1px 2px rgba(0,0,0,0.05);
+    pointer-events: none;
+}
+
+.clock span {
+    font-variant-numeric: tabular-nums;
+}
+
+.clock:hover {
+    background: rgba(255,255,255,1);
+}
+.card {
+    background:#fff; border-radius:16px; padding:25px; margin-bottom:25px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+.card:hover { transform: translateY(-2px); }
+
+h3 { color:#2c3e50; margin-bottom:15px; }
+
+button, a.btn {
+    border:none; border-radius:10px; padding:12px 20px; font-weight:500; text-decoration:none;
+    cursor:pointer; transition:0.2s; box-shadow:0 4px 12px rgba(0,0,0,0.1);
+}
+button:hover, a.btn:hover { opacity:0.9; transform: translateY(-1px); }
+
+button.checkin-btn { background:linear-gradient(135deg, #0984e3, #74b9ff); color:#fff; }
+button.checkout-btn { background:linear-gradient(135deg, #e74c3c, #ff7675); color:#fff; }
+button.lunch-btn { background:linear-gradient(135deg, #00b894, #55efc4); color:#fff; }
+button.edit-btn { background:linear-gradient(135deg, #6c5ce7, #a29bfe); color:#fff; }
+
+a.btn.primary { background:linear-gradient(135deg, #0984e3, #74b9ff); color:#fff; }
+a.btn.success { background:linear-gradient(135deg, #00b894, #55efc4); color:#fff; }
+a.btn.danger { background:linear-gradient(135deg, #e74c3c, #ff7675); color:#fff; }
+a.btn.admin-btn { background:linear-gradient(135deg, #6c5ce7, #a29bfe); color:#fff; }
+
+.attendance-header { display:flex; justify-content:space-between; align-items:center; }
+
+table { width:100%; border-collapse:collapse; margin-top:15px; border-radius:12px; overflow:hidden; }
+th, td { padding:12px; text-align:center; border-bottom:1px solid #ddd; }
+th { background:linear-gradient(135deg, #2d3436, #636e72); color:#fff; font-weight:600; }
+tbody tr:nth-child(even) { background:#f7f7f7; }
+.note-cell { max-width:200px; word-wrap:break-word; }
+.attendance-header { display:flex; justify-content:space-between; align-items:center; }
+
+.today-attendance {
+    background: linear-gradient(145deg, #fff, #f7f7f7);
+    border-radius:20px; padding:30px; box-shadow:0 10px 25px rgba(0,0,0,0.12);
+    display:flex; flex-direction:column; gap:15px;
+    transition: all 0.3s ease-in-out;
+}
+
+.attendance-block {
+    background:#fff; padding:20px; border-radius:16px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.08);
+    display:flex; justify-content:space-between; align-items:center;
+    opacity:0; transform: translateY(20px);
+    transition: all 0.4s ease;
+}
+
+.attendance-block.show {
+    opacity:1; transform: translateY(0);
+}
+.actions { display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; }
+</style>
+<script>
+function updateClock() {
+    const now = new Date();
+    const hours = String(now.getHours()).padStart(2,'0');
+    const minutes = String(now.getMinutes()).padStart(2,'0');
+    const seconds = String(now.getSeconds()).padStart(2,'0');
+    document.getElementById('current-time').innerHTML = hours + ':' + minutes + ':' + seconds;
+}
+setInterval(updateClock, 1000);
+window.onload = updateClock;
+</script>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h2>${employee.name}さんの勤怠管理</h2>
+        <div id="current-time" class="clock"></div>
+    </div>
+
+    <div class="card today-attendance">
+        <div class="attendance-header">
+            <h3>本日の勤怠</h3>
+            <a href="/add-attendance" class="btn primary">打刻追加</a>
+        </div>
+
                         ${todayAttendance ? `
                             <p>出勤: ${todayAttendance.checkIn ? moment(todayAttendance.checkIn).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</p>
                             ${todayAttendance.lunchStart ? `
@@ -1247,7 +1316,7 @@ app.get('/attendance-main', requireLogin, async (req, res) => {
                                     <button type="submit" class="btn edit-btn">編集</button>
                                 </form>
                             ` : `
-                                ${todayAttendance.checkIn && !todayAttendance.lunchStart ? `
+            ${todayAttendance.checkIn && !todayAttendance.lunchStart ? `
                                     <form action="/start-lunch" method="POST">
                                         <button type="submit" class="btn lunch-btn">昼休み開始</button>
                                     </form>
@@ -1269,77 +1338,71 @@ app.get('/attendance-main', requireLogin, async (req, res) => {
                             </form>
                         `}
                     </div>
-                    <script>
-                        // 案件選択時の処理
-                        document.getElementById('projectSelect').addEventListener('change', function(e) {
-                            const projectId = e.target.value;
-                            const projectName = e.target.options[e.target.selectedIndex].text;
-                            document.getElementById('selectedProject').textContent = projectName;
-                            
-                            // 選択した案件IDをセッションストレージに保存
-                            sessionStorage.setItem('selectedProjectId', projectId);
-                            sessionStorage.setItem('selectedProjectName', projectName);
-                        });
-                    </script>
-                    <div class="monthly-attendance">
-                        <h3>今月の勤怠記録</h3>
-                        <div class="monthly-actions">
-                            <a href="/my-monthly-attendance?year=${moment().tz('Asia/Tokyo').year()}&month=${moment().tz('Asia/Tokyo').month() + 1}" 
-                               class="btn monthly-btn">月別勤怠照会</a>
-                        </div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>日付</th>
-                                    <th>出勤</th>
-                                    <th>退勤</th>
-                                    <th>勤務時間</th>
-                                    <th>状態</th>
-                                    <th>備考</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${monthlyAttendance.map(record => `
-                                    <tr>
-                                        <td>${moment(record.date).tz('Asia/Tokyo').format('YYYY/MM/DD')}</td>
-                                        <td>${record.checkIn ? moment(record.checkIn).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
-                                        <td>${record.checkOut ? moment(record.checkOut).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
-                                        <td>${record.workingHours || '-'}</td>
-                                        <td>${record.status}</td>
-                                        <td>${record.notes || '-'}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="leave-section">
-                        <h3>休暇</h3>
-                        <a href="/leave/apply" class="btn">休暇申請</a>
-                        <a href="/leave/my-requests" class="btn">申請履歴</a>
-                        
-                        ${req.session.isAdmin ? `
-                            <a href="/admin/leave-requests" class="btn admin-btn">休暇承認管理</a>
-                        ` : ''}
-                    </div>
-                    ${req.session.isAdmin ? `
-                        <div class="admin-links">
-                            <a href="/admin/register-employee" class="btn admin-btn">従業員登録</a>
-                            <a href="/admin/monthly-attendance" class="btn admin-btn">月別勤怠照会</a>
-                            <a href="/admin/approval-requests" class="btn admin-btn">承認リクエスト一覧</a>
-                            <a href="/admin/projects" class="btn admin-btn">案件管理</a>
-                        </div>
-                    ` : ''}
-                    <a href="/change-password" class="btn">パスワード変更</a>
-                    <a href="/logout" class="btn logout-btn">ログアウト</a>
-                </div>
-            </body>
-            </html>
-        `);
+    <div class="card monthly-attendance">
+        <h3>今月の勤怠記録</h3>
+        <div class="actions">
+            <a href="/my-monthly-attendance?year=${moment().tz('Asia/Tokyo').year()}&month=${moment().tz('Asia/Tokyo').month()+1}" class="btn primary">月別勤怠照会</a>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>日付</th>
+                    <th>出勤</th>
+                    <th>退勤</th>
+                    <th>勤務時間</th>
+                    <th>状態</th>
+                    <th>備考</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${monthlyAttendance.map(record => `
+                    <tr>
+                        <td>${moment(record.date).tz('Asia/Tokyo').format('YYYY/MM/DD')}</td>
+                        <td>${record.checkIn ? moment(record.checkIn).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
+                        <td>${record.checkOut ? moment(record.checkOut).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
+                        <td>${record.workingHours || '-'}</td>
+                        <td>${record.status}</td>
+                        <td>${record.notes || '-'}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card leave-section">
+        <h3>休暇</h3>
+        <div class="actions">
+            <a href="/leave/apply" class="btn success">休暇申請</a>
+            <a href="/leave/my-requests" class="btn primary">申請履歴</a>
+            ${req.session.isAdmin ? `<a href="/admin/leave-requests" class="btn admin-btn">休暇承認管理</a>` : ''}
+        </div>
+    </div>
+
+    ${req.session.isAdmin ? `
+    <div class="card admin-links">
+        <div class="actions">
+            <a href="/admin/register-employee" class="btn admin-btn">従業員登録</a>
+            <a href="/admin/monthly-attendance" class="btn admin-btn">月別勤怠照会</a>
+            <a href="/admin/approval-requests" class="btn admin-btn">承認リクエスト一覧</a>
+        </div>
+    </div>
+    ` : ''}
+
+    <div class="actions">
+        <a href="/change-password" class="btn primary">パスワード変更</a>
+        <a href="/logout" class="btn danger">ログアウト</a>
+    </div>
+</div>
+</body>
+</html>
+`);
+
     } catch (error) {
         console.error(error);
         res.status(500).send('サーバーエラー');
     }
 });
+
 
 app.get('/dashboard', requireLogin, async (req, res) => {
     try {
@@ -3148,12 +3211,7 @@ app.post('/save-attendance', requireLogin, async (req, res) => {
 app.post('/checkin', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
-        const projectId = req.body.projectId || sessionStorage.getItem('selectedProjectId');
         
-        if (!projectId) {
-            return res.status(400).send('案件が選択されていません');
-        }
-
         // 「日本時間の今」をUTCで保存
         const now = new Date();
         const todayJST = moment.tz(now, "Asia/Tokyo").startOf('day').toDate();
@@ -3162,7 +3220,6 @@ app.post('/checkin', requireLogin, async (req, res) => {
         const existingRecord = await Attendance.findOne({
             userId: user._id,
             date: { $gte: todayJST, $lt: tomorrowJST },
-            projectId: projectId,
             checkOut: { $exists: false }
         });
         if (existingRecord) return res.redirect('/attendance-main');
@@ -3170,7 +3227,6 @@ app.post('/checkin', requireLogin, async (req, res) => {
         const attendance = new Attendance({
             userId: user._id,
             date: todayJST,
-            projectId: projectId,
             checkIn: now, // 現在時刻（UTC）
             status: now.getHours() >= 9 ? '遅刻' : '正常'
         });
@@ -3903,30 +3959,16 @@ app.get('/my-monthly-attendance', requireLogin, async (req, res) => {
         const startDate = new Date(year, month - 1, 1);
         const endDate = new Date(year, month, 0);
         
-        // 案件情報をpopulateして取得
         const attendances = await Attendance.find({
             userId: user._id,
             date: { $gte: startDate, $lte: endDate }
-        }).populate('projectId', 'projectName projectId').sort({ date: 1, projectId: 1 });
-        
-        // 案件ごとにグループ化
-        const groupedByProject = {};
-        attendances.forEach(att => {
-            const projectKey = att.projectId ? 
-                `${att.projectId.projectName} (${att.projectId.projectId})` : 
-                '案件未設定';
-            
-            if (!groupedByProject[projectKey]) {
-                groupedByProject[projectKey] = [];
-            }
-            groupedByProject[projectKey].push(att);
-        });
+        }).sort({ date: 1 });
 
         const approvalRequest = await ApprovalRequest.findOne({
             userId: user._id,
             year: year,
             month: month
-        });
+        });        
 
         // 入社月と照会月が同じか確認
         const isJoinMonth = employee.joinDate.getFullYear() === year && 
@@ -3960,33 +4002,6 @@ app.get('/my-monthly-attendance', requireLogin, async (req, res) => {
                         color: #721c24;
                         border-left: 4px solid #dc3545;
                     }
-                    .project-section {
-                        margin-bottom: 30px;
-                        border: 1px solid #ddd;
-                        border-radius: 8px;
-                        padding: 15px;
-                        background: #f9f9f9;
-                    }
-                    .project-header {
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        margin-bottom: 15px;
-                        padding-bottom: 10px;
-                        border-bottom: 2px solid #3498db;
-                    }
-                    .project-total {
-                        text-align: right;
-                        font-weight: bold;
-                        margin-top: 10px;
-                        padding: 10px;
-                        background: #e8f4fc;
-                        border-radius: 4px;
-                    }
-                    .note-cell {
-                        max-width: 200px;
-                        word-wrap: break-word;
-                    }
                 </style>                
                 <script>
                     function updateClock() {
@@ -3998,7 +4013,6 @@ app.get('/my-monthly-attendance', requireLogin, async (req, res) => {
                     window.onload = updateClock;
                     
                     function requestApproval(year, month) {
-                        // 全案件の確認状態をチェック
                         const confirmed = ${attendances.some(a => a.isConfirmed)};
                         if (confirmed) {
                             return alert('この月の勤怠は既に承認済みです');
@@ -4079,71 +4093,56 @@ app.get('/my-monthly-attendance', requireLogin, async (req, res) => {
                     <div class="actions">
                         <button onclick="requestApproval(${year}, ${month})" class="btn">承認リクエスト</button>
                         <button onclick="printAttendance(${year}, ${month})" class="btn print-btn">勤怠表印刷</button>
-                    </div>
-                    
-                    ${Object.entries(groupedByProject).map(([projectName, projectAttendances]) => {
-                        const totalHours = projectAttendances.reduce((sum, att) => sum + (att.workingHours || 0), 0);
-                        return `
-                            <div class="project-section">
-                                <div class="project-header">
-                                    <h3>${projectName}</h3>
-                                    <span class="project-hours">合計: ${totalHours.toFixed(1)}時間</span>
-                                </div>
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>日付</th>
-                                            <th>出勤</th>
-                                            <th>退勤</th>
-                                            <th>昼休憩</th>
-                                            <th>勤務時間</th>
-                                            <th>状態</th>
-                                            <th>備考</th>
-                                            <th>操作</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${projectAttendances.map(att => `
-                                            <tr>
-                                                <td>${moment(att.date).tz('Asia/Tokyo').format('YYYY/MM/DD')}</td>
-                                                <td>${att.checkIn ? moment(att.checkIn).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
-                                                <td>${att.checkOut ? moment(att.checkOut).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
-                                                <td>
-                                                    ${att.lunchStart ? moment(att.lunchStart).tz('Asia/Tokyo').format('HH:mm:ss') : '-'} ～
-                                                    ${att.lunchEnd ? moment(att.lunchEnd).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}
-                                                </td>
-                                                <td>${att.workingHours || '-'}時間</td>
-                                                <td>${att.status} ${att.isConfirmed ? '<span class="confirmed-badge">承認済み</span>' : ''}</td>
-                                                <td class="note-cell">${att.notes || '-'}</td>
-                                                <td>
-                                                    <a href="/edit-attendance/${att._id}" class="btn edit-btn" 
-                                                       ${att.isConfirmed || (approvalRequest && approvalRequest.status === 'pending') ? 'disabled style="opacity:0.5; pointer-events:none;"' : ''}>
-                                                        編集
-                                                    </a>
-                                                    <form action="/delete-attendance/${att._id}" method="POST" style="display:inline;" 
-                                                        onsubmit="return confirm('この打刻記録を削除しますか？');">
-                                                        <button type="submit" class="btn delete-btn"
-                                                            ${att.isConfirmed || (approvalRequest && approvalRequest.status === 'pending') ? 'disabled style="opacity:0.5; pointer-events:none;"' : ''}>
-                                                            削除
-                                                        </button>
-                                                    </form>
-                                                </td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
-                        `;
-                    }).join('')}
-                    
-                    ${attendances.length === 0 ? `
-                        <div class="no-data">
-                            <p>該当月の勤怠記録がありません</p>
-                        </div>
-                    ` : ''}
+                    </div>                    
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>日付</th>
+                                <th>出勤</th>
+                                <th>退勤</th>
+                                <th>昼休憩</th>
+                                <th>勤務時間</th>
+                                <th>状態</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${attendances.map(att => `
+                                <tr>
+                                    <td>${moment(att.date).tz('Asia/Tokyo').format('YYYY/MM/DD')}</td>
+                                    <td>${att.checkIn ? moment(att.checkIn).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
+                                    <td>${att.checkOut ? moment(att.checkOut).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}</td>
+                                    <td>
+                                        ${att.lunchStart ? moment(att.lunchStart).tz('Asia/Tokyo').format('HH:mm:ss') : '-'} ～
+                                        ${att.lunchEnd ? moment(att.lunchEnd).tz('Asia/Tokyo').format('HH:mm:ss') : '-'}
+                                    </td>
+                                    <td>${att.workingHours || '-'}時間</td>
+                                    <td>${att.status} ${att.isConfirmed ? '<span class="confirmed-badge">承認済み</span>' : ''}</td>
+                                    <td>
+                                        <a href="/edit-attendance/${att._id}" class="btn edit-btn" 
+                                           ${att.isConfirmed || (approvalRequest && approvalRequest.status === 'pending') ? 'disabled style="opacity:0.5; pointer-events:none;"' : ''}>
+                                            編集
+                                        </a>
+                                        <form action="/delete-attendance/${att._id}" method="POST" style="display:inline;" 
+                                            onsubmit="return confirm('この打刻記録を削除しますか？');">
+                                            <button type="submit" class="btn delete-btn"
+                                                ${att.isConfirmed || (approvalRequest && approvalRequest.status === 'pending') ? 'disabled style="opacity:0.5; pointer-events:none;"' : ''}>
+                                                削除
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                            ${attendances.length === 0 ? `
+                                <tr>
+                                    <td colspan="7">該当月の勤怠記録がありません</td>
+                                </tr>
+                            ` : ''}
+                        </tbody>
+                    </table>
                     
                     <div class="navigation">
-                        <a href="/attendance-main" class="btn">ダッシュボードに戻る</a>
+                        <a href="/dashboard" class="btn">ダッシュボードに戻る</a>
                     </div>
                 </div>
             </body>
@@ -4227,263 +4226,6 @@ app.post('/request-approval', requireLogin, async (req, res) => {
     } catch (error) {
         console.error(error);
         res.json({ success: false, message: '承認リクエスト中にエラーが発生しました' });
-    }
-});
-
-// 管理者用案件管理ページ追加
-// 案件追加ページ
-app.get('/admin/add-project', requireLogin, isAdmin, async (req, res) => {
-    try {
-        // 全従業員を取得（担当者選択用）
-        const employees = await Employee.find().sort({ name: 1 }); // 名前順で並べると見やすい
-        console.log('全従業員:', employees); // 中身確認
-
-        res.send(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>新規案件追加</title>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                <link rel="stylesheet" href="/styles.css">
-                <style>
-                    .form-group {
-                        margin-bottom: 15px;
-                    }
-                    .form-group label {
-                        display: block;
-                        margin-bottom: 5px;
-                        font-weight: bold;
-                    }
-                    .form-group input, 
-                    .form-group select, 
-                    .form-group textarea {
-                        width: 100%;
-                        padding: 8px;
-                        border: 1px solid #ddd;
-                        border-radius: 4px;
-                        box-sizing: border-box;
-                    }
-                    .form-group select[multiple] {
-                        height: 120px;
-                    }
-                    .checkbox-group {
-                        display: flex;
-                        flex-wrap: wrap;
-                        gap: 10px;
-                    }
-                    .checkbox-item {
-                        display: flex;
-                        align-items: center;
-                        gap: 5px;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h2>新規案件追加</h2>
-                    
-                    ${req.query.success ? '<p class="success">案件が正常に追加されました</p>' : ''}
-                    ${req.query.error ? '<p class="error">案件追加中にエラーが発生しました</p>' : ''}
-                    
-                    <form action="/admin/add-project" method="POST">
-                        <div class="form-group">
-                            <label for="projectId">案件ID:</label>
-                            <input type="text" id="projectId" name="projectId" required>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="projectName">案件名:</label>
-                            <input type="text" id="projectName" name="projectName" required>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="client">クライアント名:</label>
-                            <input type="text" id="client" name="client">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="startDate">開始日:</label>
-                            <input type="date" id="startDate" name="startDate">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="endDate">終了日:</label>
-                            <input type="date" id="endDate" name="endDate">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="status">状態:</label>
-                            <select id="status" name="status" required>
-                                <option value="進行中">進行中</option>
-                                <option value="完了">完了</option>
-                                <option value="保留">保留</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="assignedUsers">担当者:</label>
-                            <select id="assignedUsers" name="assignedUsers" multiple>
-
-                                ${employees.map(e => `<option value="${e._id}">${e.name} (${e.position})</option>`).join('')}
-
-                            </select>
-                            <small>複数選択する場合はCtrlキー（MacではCommandキー）を押しながらクリック</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="description">案件説明:</label>
-                            <textarea id="description" name="description" rows="4"></textarea>
-                        </div>
-                        
-                        <button type="submit" class="btn">案件追加</button>
-                        <a href="/admin/projects" class="btn cancel-btn">キャンセル</a>
-                    </form>
-                </div>
-            </body>
-            </html>
-        `);
-    } catch (error) {
-        console.error(error);
-        res.status(500).send('案件追加ページの表示中にエラーが発生しました');
-    }
-});
-
-// 案件追加処理
-app.post('/admin/add-project', requireLogin, isAdmin, async (req, res) => {
-    try {
-        const { projectId, projectName, client, startDate, endDate, status, assignedUsers, description } = req.body;
-        
-        // 案件IDの重複チェック
-        const existingProject = await Project.findOne({ projectId });
-        if (existingProject) {
-            return res.redirect('/admin/add-project?error=true');
-        }
-        
-        const project = new Project({
-            projectId,
-            projectName,
-            client: client || null,
-            startDate: startDate ? new Date(startDate) : null,
-            endDate: endDate ? new Date(endDate) : null,
-            status,
-            assignedUsers: Array.isArray(assignedUsers) ? assignedUsers : [assignedUsers],
-            description: description || null
-        });
-        
-        await project.save();
-        res.redirect('/admin/add-project?success=true');
-        
-    } catch (error) {
-        console.error('案件追加エラー:', error);
-        res.redirect('/admin/add-project?error=true');
-    }
-});
-
-// 案件一覧ページ（既存のものを修正）
-app.get('/admin/projects', requireLogin, isAdmin, async (req, res) => {
-    try {
-        const projects = await Project.find().populate('assignedUsers');
-        
-        res.send(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>案件管理</title>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                <link rel="stylesheet" href="/styles.css">
-                <style>
-                    .project-table {
-                        width: 100%;
-                        border-collapse: collapse;
-                        margin-top: 20px;
-                    }
-                    .project-table th,
-                    .project-table td {
-                        padding: 12px;
-                        text-align: left;
-                        border-bottom: 1px solid #ddd;
-                    }
-                    .project-table th {
-                        background-color: #f8f9fa;
-                        font-weight: bold;
-                    }
-                    .status-badge {
-                        padding: 4px 8px;
-                        border-radius: 12px;
-                        font-size: 12px;
-                        font-weight: bold;
-                    }
-                    .status-進行中 { background-color: #d4edda; color: #155724; }
-                    .status-完了 { background-color: #cce5ff; color: #004085; }
-                    .status-保留 { background-color: #fff3cd; color: #856404; }
-                    .assigned-users {
-                        max-width: 200px;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                        white-space: nowrap;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h2>案件管理</h2>
-                    
-                    <div class="actions">
-                        <a href="/admin/add-project" class="btn">新規案件追加</a>
-                        <a href="/attendance-main" class="btn">ダッシュボードに戻る</a>
-                    </div>
-                    
-                    <table class="project-table">
-                        <thead>
-                            <tr>
-                                <th>案件ID</th>
-                                <th>案件名</th>
-                                <th>クライアント</th>
-                                <th>担当者</th>
-                                <th>期間</th>
-                                <th>状態</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${projects.map(project => `
-                                <tr>
-                                    <td>${project.projectId}</td>
-                                    <td>${project.projectName}</td>
-                                    <td>${project.client || '-'}</td>
-                                    <td class="assigned-users" title="${project.assignedUsers.map(u => u.name).join(', ')}">
-                                        ${project.assignedUsers.map(u => u.name).join(', ')}
-                                    </td>
-                                    <td>
-                                        ${project.startDate ? moment(project.startDate).format('YYYY/MM/DD') : '-'} ～
-                                        ${project.endDate ? moment(project.endDate).format('YYYY/MM/DD') : '-'}
-                                    </td>
-                                    <td>
-                                        <span class="status-badge status-${project.status}">${project.status}</span>
-                                    </td>
-                                    <td>
-                                        <a href="/admin/edit-project/${project._id}" class="btn edit-btn">編集</a>
-                                        <form action="/admin/delete-project/${project._id}" method="POST" style="display:inline;">
-                                            <button type="submit" class="btn delete-btn" 
-                                                onclick="return confirm('この案件を削除しますか？')">削除</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                            ${projects.length === 0 ? `
-                                <tr>
-                                    <td colspan="7" style="text-align: center;">登録されている案件がありません</td>
-                                </tr>
-                            ` : ''}
-                        </tbody>
-                    </table>
-                </div>
-            </body>
-            </html>
-        `);
-    } catch (error) {
-        console.error(error);
-        res.status(500).send('案件管理ページの表示中にエラーが発生しました');
     }
 });
 
