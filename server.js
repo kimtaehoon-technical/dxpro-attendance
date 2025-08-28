@@ -1607,82 +1607,303 @@ const Goal = mongoose.model('Goal', goalSchema);
 
 // 目標一覧
 app.get('/goals', requireLogin, async (req, res) => {
-    // セッションのUserIDからEmployeeを取得
-    const employee = await Employee.findOne({ userId: req.session.user._id });
-    if (!employee) return res.send("社員情報が見つかりません");
+  const employee = await Employee.findOne({ userId: req.session.user._id });
+  if (!employee) return res.send("社員情報が見つかりません");
 
-    // Employee._id を ownerId として検索
-    const goals = await Goal.find({ ownerId: employee._id }).populate('currentApprover');
+  const goals = await Goal.find({ ownerId: employee._id }).populate('currentApprover');
 
-    const statusLabels = {
+  const statusLabels = {
     draft: "下書き",
     pending1: "承認依頼中（一次）",
     approved1: "一次承認済み／評価入力中",
     pending2: "承認依頼中（二次）",
     completed: "完了",
     rejected: "差し戻し"
-    };
+  };
 
-    const html = `
-    <a href="/goals/add" class="btn">目標追加</a>
-    <a href="/goals/approval"><i class="fa-solid fa-check"></i>承認管理</a>
-    <table>
-    <thead>
-    </thead>
-    <tbody>
-    ${goals.map(g => `
-    <div class="card">
-    <div class="card-header">
-        <span>${g.title}</span>
-        <span class="status-label status-${g.status}">${statusLabels[g.status]}</span>
-    </div>
-        <p><strong>
-        <p><strong>期限：</strong> ${g.deadline ? g.deadline.toISOString().substring(0,10) : '-'}</p>
-        <p><strong>承認者：</strong> ${g.currentApprover ? g.currentApprover.name : '-'}</p>
-        <p><strong>アクションプラン：</strong> ${g.actionPlan || '-'}</p>
-        <div class="progress-container">
-            <div class="progress-bar" style="width:${g.progress||0}%"></div>
-        </div>
-        <div style="margin-top:10px;">
-        <a href="/goals/detail/${g._id}" class="btn btn-primary">詳細</a>
-        ${g.status === 'draft' || g.status === 'rejected' ? `<a href="/goals/edit/${g._id}" class="btn btn-primary">編集</a> | <a href="/goals/delete/${g._id}" class="btn btn-danger">削除</a>` : ''}
-        ${g.status === 'draft' || g.status === 'rejected' ? `<a href="/goals/submit1/${g._id}" class="btn btn-primary">1次承認依頼</a>` : ''}
-        ${g.status === 'approved1' ? `<a href="/goals/evaluate/${g._id}" class="btn btn-primary">評価入力</a>` : ''}
-        </div>
-    </div>
+  const summary = {
+    all: goals.length,
+    inProgress: goals.filter(g => g.status !== 'completed').length,
+    completed: goals.filter(g => g.status === 'completed').length,
+    pendingApproval: goals.filter(g => g.status.startsWith('pending')).length
+  };
+
+  const html = `
+  <style>
+    body { font-family:"Segoe UI", sans-serif; background:#f5f6fa; margin:0; padding:0; }
+
+    .dashboard-banner { text-align:center; margin-bottom:30px; font-size:1.3rem; font-weight:600; }
+
+    .content { padding:25px; }
+
+    /* KPIカード */
+    .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:25px; margin-bottom:30px; }
+    .summary-card {
+        position:relative;
+        padding:25px;
+        border-radius:18px;
+        color:#fff;
+        box-shadow:0 12px 30px rgba(0,0,0,0.2);
+        text-align:center;
+        transition:transform 0.4s, box-shadow 0.4s;
+    }
+    .summary-card:hover { transform:translateY(-10px); box-shadow:0 16px 35px rgba(0,0,0,0.3); }
+    .kpi-icon { font-size:2.8rem; margin-bottom:12px; }
+    .kpi-value { font-size:2rem; font-weight:bold; }
+    .kpi-label { margin-top:8px; font-size:1rem; font-weight:500; }
+    .kpi-ai { margin-top:10px; font-size:0.9rem; opacity:0.9; color:#FFD700; }
+
+    /* AIカード */
+    .chart-ai-grid { display:grid; grid-template-columns:1.5fr 1fr; gap:25px; margin-bottom:30px; }
+    .chart-card, .ai-card {
+      border-radius:15px;
+      padding:25px;
+      box-shadow:0 10px 25px rgba(0,0,0,0.25);
+    }
+    .chart-card { background:white; }
+    .chart-card canvas { width:100% !important; height:500px !important; }
+
+    .ai-card { background:#1F2937; color:#fff; }
+    .ai-card h3 { margin-bottom:20px; font-size:1.4rem; font-weight:600; }
+    .ai-section {
+      margin-bottom:20px;
+      padding:15px;
+      border-radius:12px;
+      background: rgba(255,255,255,0.05);
+    }
+    .ai-section h4 { margin-bottom:10px; font-size:1.1rem; color:#FFD700; font-weight:600; }
+    .ai-section ul { margin:0; padding-left:20px; }
+    .ai-card button { background:#FFD700; color:#1F2937; font-weight:bold; border:none; border-radius:8px; padding:10px 15px; cursor:pointer; }
+
+    /* タイムライン */
+    .timeline-item { background:white; border-radius:12px; padding:18px; margin-bottom:18px; box-shadow:0 5px 12px rgba(0,0,0,0.15); transition:transform 0.3s, box-shadow 0.3s; }
+    .timeline-item:hover { transform: translateY(-5px); box-shadow:0 10px 18px rgba(0,0,0,0.25); }
+    .timeline-date { font-weight:bold; color:#636e72; margin-bottom:10px; }
+    .progress { background:#dcdde1; border-radius:5px; overflow:hidden; height:20px; margin-top:10px; }
+    .progress-bar { background:#0984e3; height:100%; width:0%; transition: width 1s; }
+
+    /* ボタン */
+    .btn { padding:5px 10px; border-radius:5px; text-decoration:none; margin-right:5px; }
+    .btn-sm { padding:3px 6px; font-size:0.8em; }
+    .actions .btn { margin-right:10px; margin-top:10px; }
+  </style>
+
+  <div class="dashboard-banner">
+    ${employee.name} さんの最新ステータス
+  </div>
+
+  <main class="content">
+    <!-- KPIカード -->
+    <div id="overview" class="summary-grid">
+    ${[
+      {label:'総目標数', value:summary.all, color:'#6C5CE7', icon:'🎯', aiMsg:'NOKORIのおすすめ: 全目標を確認しましょう'},
+      {label:'進行中', value:summary.inProgress, color:'#00B894', icon:'⚡', aiMsg:'NOKORIのおすすめ: 優先度の高い目標から着手'},
+      {label:'承認待ち', value:summary.pendingApproval, color:'#FD79A8', icon:'⏳', aiMsg:'NOKORIのおすすめ: 承認依頼を早めに処理'},
+      {label:'完了', value:summary.completed, color:'#E17055', icon:'✅', aiMsg:'NOKORIのおすすめ: 素晴らしい！'}
+    ].map(kpi=>`
+      <div class="summary-card" style="background:linear-gradient(135deg, ${kpi.color}cc, ${kpi.color}99);">
+        <div class="kpi-icon">${kpi.icon}</div>
+        <div class="kpi-value" data-target="${kpi.value}">0</div>
+        <div class="kpi-label">${kpi.label}</div>
+        <div class="kpi-ai">${kpi.aiMsg}</div>
+      </div>
     `).join('')}
-    </tbody>
-    </table>
-    `;
+    </div>
 
-    renderPage(req, res, '目標設定管理', '目標設定管理画面', html);
+    <!-- チャート＋AIカード -->
+    <div class="chart-ai-grid">
+      <div class="chart-card">
+        <h3>ステータス別の割合</h3>
+        <canvas id="goalChart"></canvas>
+      </div>
+
+      <div class="ai-card">
+        <h3>AI目標支援</h3>
+        <div class="ai-section">
+          <h4>おすすめ目標</h4>
+          <ul id="aiRecommended">まだ生成されていません</ul>
+        </div>
+        <div class="ai-section">
+          <h4>達成戦略</h4>
+          <ul id="aiStrategy">AIが提案します</ul>
+        </div>
+        <div class="ai-section">
+          <h4>優先度評価</h4>
+          <ul id="aiPriority">AIが分析中</ul>
+        </div>
+        <button id="aiSuggestBtn">AIで提案生成</button>
+      </div>
+    </div>
+
+    <!-- アクションボタン -->
+    <div class="actions">
+      <a href="/goals/add" class="btn btn-success">＋ 新規目標を作成</a>
+      <a href="/goals/approval" class="btn btn-primary">承認待ち一覧</a>
+      <a href="/goals/report" class="btn btn-primary">レポート出力</a>
+    </div><br><br>
+
+    <!-- タイムライン -->
+    <div id="myGoals" class="timeline">
+      ${goals.map(g => `
+        <div class="timeline-item">
+          <div class="timeline-date">${g.deadline ? g.deadline.toISOString().substring(0,10) : '-'}</div>
+          <div class="timeline-content">
+            <h4>${g.title}</h4>
+            <span class="badge bg-info">${statusLabels[g.status]}</span>
+            <p>承認者: ${g.currentApprover ? g.currentApprover.name : '-'}</p>
+            <div class="progress">
+              <div class="progress-bar" data-progress="${g.progress||0}">${g.progress||0}%</div>
+            </div>
+            <a href="/goals/detail/${g._id}" class="btn btn-outline-primary btn-sm mt-2">詳細</a>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    // KPIアニメーション
+    document.querySelectorAll('.kpi-value').forEach(el=>{
+        let target=+el.getAttribute('data-target'),count=0,step=Math.ceil(target/50);
+        let interval=setInterval(()=>{count+=step;if(count>=target){count=target;clearInterval(interval);}el.textContent=count;},20);
+    });
+
+    // 進捗バーアニメーション
+    document.querySelectorAll('.progress-bar').forEach(bar=>{
+      let progress = bar.getAttribute('data-progress');
+      setTimeout(()=>{ bar.style.width = progress+'%'; },100);
+    });
+
+    // チャート
+    const ctx = document.getElementById('goalChart').getContext('2d');
+    new Chart(ctx, {
+      type:'doughnut',
+      data:{ labels:['完了','進行中','承認待ち'], datasets:[{ data:[${summary.completed},${summary.inProgress},${summary.pendingApproval}], backgroundColor:['#28a745','#ffc107','#17a2b8'], borderWidth:2, borderColor:'#fff' }]},
+      options:{ responsive:true, maintainAspectRatio:false, animation:{ animateScale:true, animateRotate:true } }
+    });
+
+    // AI提案ボタン
+    document.getElementById('aiSuggestBtn').addEventListener('click', async () => {
+      const rec = document.getElementById('aiRecommended');
+      const strat = document.getElementById('aiStrategy');
+      const prio = document.getElementById('aiPriority');
+
+      rec.innerHTML = '生成中...';
+      strat.innerHTML = '生成中...';
+      prio.innerHTML = '生成中...';
+
+      const res = await fetch('/api/ai/goal-suggestions');
+      const data = await res.json();
+
+      rec.innerHTML = '<ul>' + data.recommended.map(s=>'<li>'+s+'</li>').join('') + '</ul>';
+      strat.innerHTML = '<ul>' + data.strategy.map(s=>'<li>'+s+'</li>').join('') + '</ul>';
+      prio.innerHTML = '<ul>' + data.priority.map(s=>'<li>'+s+'</li>').join('') + '</ul>';
+    });
+  </script>
+  `;
+
+  renderPage(req,res,'目標設定管理','目標管理ダッシュボード',html);
 });
+
+
+
 
 // 目標作成フォーム
 app.get('/goals/add', requireLogin, async (req, res) => {
-    const employees = await Employee.find(); // 承認者選択用
-    const html = `
+  const employees = await Employee.find(); // 承認者選択用
+
+  const html = `
+  <style>
+    body { font-family:"Segoe UI", sans-serif; background:#f5f6fa; margin:0; padding:0; }
+    .content { max-width:700px; margin:40px auto; background:white; padding:30px; border-radius:15px; box-shadow:0 12px 30px rgba(0,0,0,0.15); }
+
+    h3 { text-align:center; margin-bottom:30px; font-size:1.6rem; font-weight:600; }
+
+    form label { display:block; margin-bottom:15px; font-weight:500; color:#333; }
+    form input[type="text"],
+    form input[type="date"],
+    form select,
+    form textarea {
+      width:100%;
+      padding:10px 12px;
+      border:1px solid #dcdde1;
+      border-radius:8px;
+      font-size:1rem;
+      margin-top:5px;
+      box-sizing:border-box;
+      transition: all 0.2s;
+    }
+    form input:focus,
+    form select:focus,
+    form textarea:focus { border-color:#6c5ce7; outline:none; box-shadow:0 0 8px rgba(108,92,231,0.3); }
+
+    form textarea { min-height:80px; resize:vertical; }
+
+    .btn {
+      display:inline-block;
+      background:#6c5ce7;
+      color:white;
+      padding:10px 20px;
+      border:none;
+      border-radius:8px;
+      font-weight:bold;
+      cursor:pointer;
+      transition: background 0.3s, transform 0.2s;
+    }
+    .btn:hover { background:#341f97; transform:translateY(-2px); }
+
+    .form-group { margin-bottom:20px; }
+  </style>
+
+  <div class="content">
+    <h3>新規目標の作成</h3>
     <form method="POST" action="/goals/add">
-        <label>目標名: <input type="text" name="title" required></label><br>
-        <label>説明: <textarea name="description"></textarea></label><br>
-        <label>目標レベル:
-            <select name="goalLevel">
-                <option value="低">低</option>
-                <option value="中" selected>中</option>
-                <option value="高">高</option>
-            </select>
-        </label><br>
-        <label>アクションプラン: <textarea name="actionPlan"></textarea></label><br>
-        <label>期限: <input type="date" name="deadline"></label><br>
-        <label>承認者:
-            <select name="approverId">
-                ${employees.map(e => `<option value="${e._id}">${e.name} (${e.position})</option>`).join('')}
-            </select>
-        </label><br>
+      <div class="form-group">
+        <label>目標名</label>
+        <input type="text" name="title" required placeholder="目標名を入力">
+      </div>
+
+      <div class="form-group">
+        <label>説明</label>
+        <textarea name="description" placeholder="目標の詳細を入力"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>目標レベル</label>
+        <select name="goalLevel">
+          <option value="低">低</option>
+          <option value="中" selected>中</option>
+          <option value="高">高</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>アクションプラン</label>
+        <textarea name="actionPlan" placeholder="目標達成のための行動計画"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>期限</label>
+        <input type="date" name="deadline">
+      </div>
+
+      <div class="form-group">
+        <label>承認者</label>
+        <select name="approverId">
+          ${employees.map(e => `<option value="${e._id}">${e.name} (${e.position || '-'})</option>`).join('')}
+        </select>
+      </div>
+
+      <div style="text-align:center; margin-top:30px;">
         <button type="submit" class="btn">作成</button>
+        <a href="/goals" class="btn" style="background:#0984e3;">目標一覧に戻る</a>
+      </div>
     </form>
-    `;
-    renderPage(req, res, '目標追加', '目標追加', html);
+  </div>
+  `;
+
+  renderPage(req, res, '目標追加', '目標追加', html);
 });
 
 app.post('/goals/add', requireLogin, async (req, res) => {
@@ -1741,6 +1962,7 @@ app.get('/goals/reject1/:id', requireLogin, async (req, res) => {
           <textarea name="comment" required></textarea>
         </label><br>
         <button type="submit" class="btn">差し戻し送信</button>
+        <a href="/goals" class="btn" style="background:#0984e3;">目標一覧に戻る</a>
       </form>
     `;
     renderPage(req, res, '一次差し戻し', '一次差し戻し理由入力', html);
@@ -1790,6 +2012,7 @@ app.get('/goals/evaluate/:id', requireLogin, async (req,res)=>{
             </select>
         </label><br>
         <button type="submit" class="btn">2次承認依頼</button>
+        <a href="/goals" class="btn" style="background:#0984e3;">目標一覧に戻る</a>
     </form>
     `;
     renderPage(req,res,'評価入力','評価入力画面',html);
@@ -1821,6 +2044,7 @@ app.get('/goals/reject2/:id', requireLogin, async (req, res) => {
           <textarea name="comment" required></textarea>
         </label><br>
         <button type="submit" class="btn">差し戻し送信</button>
+        <a href="/goals" class="btn" style="background:#0984e3;">目標一覧に戻る</a>
       </form>
     `;
     renderPage(req, res, '二次差し戻し', '二次差し戻し理由入力', html);
@@ -1918,6 +2142,7 @@ app.get('/goals/edit/:id', requireLogin, async (req, res) => {
             </select>
         </label><br>
         <button type="submit" class="btn">更新</button>
+        <a href="/goals" class="btn" style="background:#0984e3;">目標一覧に戻る</a>
     </form>
     `;
     renderPage(req, res, '目標編集', '目標編集画面', html);
@@ -2041,59 +2266,130 @@ app.get('/goals/delete/:id', requireLogin, async (req, res) => {
 
 // 承認者向け目標一覧
 app.get('/goals/approval', requireLogin, async (req, res) => {
-    const employee = await Employee.findOne({ userId: req.session.user._id });
-    const goals = await Goal.find({
-        currentApprover: employee._id,
-        status: { $in: ['pending1', 'pending2'] }
-    }).populate('ownerId');
-    const statusLabels = {
+  const employee = await Employee.findOne({ userId: req.session.user._id });
+  const goals = await Goal.find({
+    currentApprover: employee._id,
+    status: { $in: ['pending1', 'pending2'] }
+  }).populate('ownerId');
+
+  const statusLabels = {
     draft: "下書き",
     pending1: "承認依頼中（一次）",
     approved1: "一次承認済み／評価入力中",
     pending2: "承認依頼中（二次）",
     completed: "完了",
     rejected: "差し戻し"
-    };
-    const html = `
+  };
+
+  const html = `
+  <style>
+    body { font-family:"Segoe UI", sans-serif; background:#f5f6fa; margin:0; padding:0; }
+    .content { padding:25px; }
+
+    h3 { text-align:center; margin-bottom:30px; font-size:1.6rem; font-weight:600; }
+
+    /* カード型テーブル */
+    .approval-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:25px; }
+
+    .approval-card {
+      background:white;
+      border-radius:15px;
+      padding:20px;
+      box-shadow:0 12px 30px rgba(0,0,0,0.15);
+      transition: transform 0.3s, box-shadow 0.3s;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+    }
+
+    .approval-card:hover { transform: translateY(-5px); box-shadow:0 16px 35px rgba(0,0,0,0.25); }
+
+    .approval-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; }
+    .approval-header h4 { margin:0; font-size:1.2rem; color:#333; }
+    .approval-header .status { padding:5px 10px; border-radius:12px; font-weight:bold; font-size:0.85rem; color:#fff; }
+
+    .status-pending1 { background:#fd79a8; }
+    .status-pending2 { background:#0984e3; }
+    .status-approved1, .status-approved2 { background:#00b894; }
+    .status-rejected { background:#d63031; }
+    .approval-content { font-size:0.95rem; color:#555; margin-bottom:10px; }
+    
+    .progress-container { margin-bottom:15px; }
+    .progress { background:#dcdde1; border-radius:10px; overflow:hidden; height:15px; }
+    .progress-bar { background:#6c5ce7; height:100%; width:0%; transition: width 1s; }
+
+    .approval-actions { text-align:right; }
+    .btn { text-decoration:none; padding:6px 12px; border-radius:8px; font-weight:bold; margin-left:5px; font-size:0.9rem; }
+    .btn-detail { background:#00b894; color:#fff; }
+    .btn-approve { background:#0984e3; color:#fff; }
+    .btn-reject { background:#d63031; color:#fff; }
+  </style>
+
+  <div class="content">
     <h3>承認待ちの目標一覧</h3>
-    <table border="1" cellpadding="8" cellspacing="0" style="width:100%; background:white; border-radius:8px;">
-        <thead>
-            <tr>
-                <th>社員名</th>
-                <th>目標名</th>
-                <th>アクションプラン</th>
-                <th>期限</th>
-                <th>進捗</th>
-                <th>状態</th>
-                <th>操作</th>
-            </tr>
-        </thead>
-        <tbody>
-            ${goals.map(g => `
-            <tr>
-                <td>${g.ownerId ? g.ownerId.name : 'Unknown Employee'}</td> <!-- Add null check -->
-                <td>${g.title}</td>
-                <td>${g.actionPlan || '-'}</td>
-                <td>${g.deadline ? g.deadline.toISOString().substring(0,10) : '-'}</td>
-                <td>${g.progress || 0}%</td>
-                <td>${statusLabels[g.status] || g.status}</td>
-                <td>
-                    <a href="/goals/detail/${g._id}">詳細</a>
-                    ${g.status === 'pending1' ? `
-                        <a href="/goals/approve1/${g._id}">承認</a> |
-                        <a href="/goals/reject1/${g._id}">差し戻し</a>
-                    ` : ''}
-                    ${g.status === 'pending2' ? `
-                        <a href="/goals/approve2/${g._id}">承認</a> |
-                        <a href="/goals/reject2/${g._id}">差し戻し</a>
-                    ` : ''}
-                </td>
-            </tr>
-            `).join('')}
-        </tbody>
-    </table>
-    `;
-    renderPage(req, res, '承認管理', '承認管理画面', html);
+    <div class="approval-grid">
+      ${goals.map(g => `
+        <div class="approval-card">
+          <div class="approval-header">
+            <h4>${g.title}</h4>
+            <span class="status ${g.status}">${statusLabels[g.status]}</span>
+          </div>
+          <div class="approval-content">
+            <p><strong>社員名:</strong> ${g.ownerId ? g.ownerId.name : 'Unknown'}</p>
+            <p><strong>アクションプラン:</strong> ${g.actionPlan || '-'}</p>
+            <p><strong>期限:</strong> ${g.deadline ? g.deadline.toISOString().substring(0,10) : '-'}</p>
+          </div>
+          <div class="progress-container">
+            <div class="progress">
+              <div class="progress-bar" data-progress="${g.progress || 0}">${g.progress || 0}%</div>
+            </div>
+          </div>
+          <div class="approval-actions">
+            <a href="/goals/detail/${g._id}" class="btn btn-detail">詳細</a>
+            ${g.status === 'pending1' ? `
+              <a href="/goals/approve1/${g._id}" class="btn btn-approve">承認</a>
+              <a href="/goals/reject1/${g._id}" class="btn btn-reject">差し戻し</a>
+            ` : ''}
+            ${g.status === 'pending2' ? `
+              <a href="/goals/approve2/${g._id}" class="btn btn-approve">承認</a>
+              <a href="/goals/reject2/${g._id}" class="btn btn-reject">差し戻し</a>
+            ` : ''}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <div style="text-align:center; margin-top:30px;">
+        <a href="/goals" class="btn" style="background:#0984e3; color:#fff;">目標一覧に戻る</a>
+    </div>    
+  </div>
+
+  <script>
+    // プログレスバーアニメーション
+    document.querySelectorAll('.progress-bar').forEach(bar=>{
+      let progress = bar.getAttribute('data-progress');
+      setTimeout(()=>{ bar.style.width = progress+'%'; },100);
+    });
+  </script>
+  `;
+
+  renderPage(req, res, '承認管理', '承認管理画面', html);
+});
+
+app.get('/goals/report', requireLogin, async (req, res) => {
+  const employee = await Employee.findOne({ userId: req.session.user._id });
+  if (!employee) return res.status(404).send("社員情報が見つかりません");
+
+  const goals = await Goal.find({ ownerId: employee._id }).populate('currentApprover');
+
+  // CSVヘッダー
+  let csv = '目標名,説明,目標レベル,アクションプラン,期限,承認者,状態,進捗\n';
+  goals.forEach(g => {
+    csv += `"${g.title}","${g.description || ''}","${g.goalLevel || ''}","${g.actionPlan || ''}","${g.deadline ? g.deadline.toISOString().substring(0,10) : ''}","${g.currentApprover ? g.currentApprover.name : ''}","${g.status}","${g.progress || 0}"\n`;
+  });
+
+  res.setHeader('Content-Disposition', 'attachment; filename="goal_report.csv"');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.send(csv);
 });
 
 // 人事管理画面
