@@ -599,7 +599,7 @@ app.post('/login', async (req, res) => {
         req.session.username = user.username;
         
         console.log('ログイン成功:', user.username, '管理者:', user.isAdmin);
-        return res.redirect('/attendance-main');
+        return res.redirect('/dashboard');
     } catch (error) {
         console.error('ログインエラー:', error);
         res.redirect('/login?error=server_error');
@@ -740,7 +740,7 @@ app.get('/leave/apply', requireLogin, async (req, res) => {
             <!DOCTYPE html>
             <html>
             <head>
-                <title>휴가 신청</title>
+                <title>休暇申請</title>
                 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                 <link rel="stylesheet" href="/styles.css">
                 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
@@ -1273,6 +1273,14 @@ tbody tr:nth-child(even) { background:#f7f7f7; }
     opacity:1; transform: translateY(0);
 }
 .actions { display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; }
+
+@media (max-width:768px) {
+    .header { flex-direction:column; }
+    .clock { font-size:1.5rem; padding:12px 20px; min-width:120px; }
+    .card { padding:15px; }
+    button, a.btn { padding:10px 16px; font-size:0.9rem; }
+}
+
 </style>
 <script>
 function updateClock() {
@@ -1290,6 +1298,8 @@ window.onload = updateClock;
 <div class="container">
     <div class="header">
         <h2>${employee.name}さんの勤怠管理</h2>
+                    <p>従業員ID: ${employee.employeeId} | 部署: ${employee.department}</p>
+                    <a href="/dashboard" class="btn">🏠 総合システムのダッシュボードに戻る</a>        
         <div id="current-time" class="clock"></div>
     </div>
 
@@ -1739,8 +1749,28 @@ app.get('/goals', requireLogin, async (req, res) => {
   <style>
     body { font-family:"Segoe UI", sans-serif; background:#f5f6fa; margin:0; padding:0; }
 
-    .dashboard-banner { text-align:center; margin-bottom:30px; font-size:1.3rem; font-weight:600; }
+    .dashboard-banner {
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:12px;
+    background:linear-gradient(135deg,#4e54c8,#8f94fb);
+    color:white;
+    padding:20px;
+    border-radius:15px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.2);
+    font-size:1.5rem;
+    font-weight:700;
+    animation: fadeInDown 0.8s ease;
+    }
+    .dashboard-banner .icon {
+    font-size:2rem;
+    }
 
+    @keyframes fadeInDown {
+    from { opacity:0; transform:translateY(-20px); }
+    to   { opacity:1; transform:translateY(0); }
+    }
     .content { padding:25px; }
 
     /* KPIカード */
@@ -1758,8 +1788,25 @@ app.get('/goals', requireLogin, async (req, res) => {
     .kpi-icon { font-size:2.8rem; margin-bottom:12px; }
     .kpi-value { font-size:2rem; font-weight:bold; }
     .kpi-label { margin-top:8px; font-size:1rem; font-weight:500; }
-    .kpi-ai { margin-top:10px; font-size:0.9rem; opacity:0.9; color:#FFD700; }
-
+    @keyframes bounceIn {
+    0%   { transform: scale(0.8); opacity: 0; }
+    60%  { transform: scale(1.2); opacity: 1; }
+    80%  { transform: scale(0.9); }
+    100% { transform: scale(1); }
+    }    
+    .kpi-ai {
+    opacity: 0; /* 最初は非表示 */
+    margin-top:10px; 
+    font-size:0.9rem; 
+    font-weight:500;
+    color:#f1f3f5;   /* 薄いグレー寄りの白でコントラストUP */
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5); /* 輪郭を出して見やすく */
+    transform: scale(0.8);
+    }
+    .kpi-ai.show {
+    opacity: 1;
+    animation: bounceIn 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+    }    
     /* AIカード */
     .chart-ai-grid { display:grid; grid-template-columns:1.5fr 1fr; gap:25px; margin-bottom:30px; }
     .chart-card, .ai-card {
@@ -1768,8 +1815,27 @@ app.get('/goals', requireLogin, async (req, res) => {
       box-shadow:0 10px 25px rgba(0,0,0,0.25);
     }
     .chart-card { background:white; }
-    .chart-card canvas { width:100% !important; height:500px !important; }
+    .chart-card canvas {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 400px;   /* ← 最大幅を設定 */
+    max-height: 400px;  /* ← 最大高さを設定 */
+    margin: 0 auto;
+    display: block;
+    }
+    .insight-card {
+    margin-top:20px;
+    padding:15px;
+    border-radius:12px;
+    background:#f9fafb;
+    box-shadow:0 5px 12px rgba(0,0,0,0.1);
+    font-size:0.95rem;
+    }
 
+    .ai-side {
+    display:flex;
+    flex-direction:column;
+    }
     .ai-card { background:#1F2937; color:#fff; }
     .ai-card h3 { margin-bottom:20px; font-size:1.4rem; font-weight:600; }
     .ai-section {
@@ -1795,9 +1861,10 @@ app.get('/goals', requireLogin, async (req, res) => {
     .actions .btn { margin-right:10px; margin-top:10px; }
   </style>
 
-  <div class="dashboard-banner">
-    ${employee.name} さんの最新ステータス
-  </div>
+    <div class="dashboard-banner">
+    <span class="icon">📌</span>
+    <span>${employee.name} さんの最新ステータス</span>
+    </div>
 
   <main class="content">
     <!-- KPIカード -->
@@ -1818,28 +1885,58 @@ app.get('/goals', requireLogin, async (req, res) => {
     </div>
 
     <!-- チャート＋AIカード -->
-    <div class="chart-ai-grid">
-      <div class="chart-card">
-        <h3>ステータス別の割合</h3>
+<!-- チャート＋AIカード -->
+<div class="chart-ai-grid">
+  <!-- 左側：グラフ＋インサイト -->
+  <div class="chart-card">
+    <h3>📊 ステータス別の割合</h3>
+    <div style="position:relative; width:100%; max-width:400px; height:400px; margin:0 auto;">
         <canvas id="goalChart"></canvas>
-      </div>
+    </div>
+    <div class="insight-card">
+    <h4>AIインサイト</h4>
+    <p>進行中の目標が多めです。優先度を見直すと効率アップが期待できます。</p>
 
-      <div class="ai-card">
-        <h3>AI目標支援</h3>
+    <ul style="margin-top:10px; padding-left:18px; font-size:0.95rem; color:#333;">
+    <li>⚡ <strong>進行中が全体の${summary.inProgress}件</strong>を占めています</li>
+    <li>✅ 完了済みは <strong>${summary.completed}件</strong>、全体の${Math.round(summary.completed/summary.all*100)}%</li>
+    <li>⏳ 承認待ちは <strong>${summary.pendingApproval}件</strong>あり、停滞のリスクあり</li>
+    </ul>
+
+    <div style="margin-top:12px; padding:10px; border-radius:8px; background:#f1f8ff; font-size:0.9rem; color:#0d6efd;">
+    💡 <em>提案:</em> 「承認待ち」を今週中に処理すれば、全体進捗がスムーズに向上します。
+    </div>
+    </div>
+  </div>
+
+  <!-- 右側：AI支援（2分割） -->
+    <div class="ai-side">
+        <div class="ai-card">
+        <h3>🤖 AI目標支援</h3>
         <div class="ai-section">
-          <h4>おすすめ目標</h4>
-          <ul id="aiRecommended">まだ生成されていません</ul>
+            <h4>おすすめ目標</h4>
+            <ul id="aiRecommended">まだ生成されていません</ul>
         </div>
         <div class="ai-section">
-          <h4>達成戦略</h4>
-          <ul id="aiStrategy">AIが提案します</ul>
+            <h4>達成戦略</h4>
+            <ul id="aiStrategy">AIが提案します</ul>
         </div>
         <div class="ai-section">
-          <h4>優先度評価</h4>
-          <ul id="aiPriority">AIが分析中</ul>
+            <h4>優先度評価</h4>
+            <ul id="aiPriority">AIが分析中</ul>
         </div>
         <button id="aiSuggestBtn">AIで提案生成</button>
-      </div>
+        </div>
+
+        <div class="ai-card" style="margin-top:20px;">
+        <h3>💡 スマートTips</h3>
+        <ul>
+            <li>週の始まりに未承認タスクを処理しましょう</li>
+            <li>達成率50%以上の目標は早期完了を狙えます</li>
+            <li>進捗が止まっている目標を優先的に再確認</li>
+        </ul>
+        </div>
+    </div>
     </div>
 
     <!-- アクションボタン -->
@@ -1882,30 +1979,74 @@ app.get('/goals', requireLogin, async (req, res) => {
       setTimeout(()=>{ bar.style.width = progress+'%'; },100);
     });
 
+    document.addEventListener("DOMContentLoaded", () => {
+        const aiMsgs = document.querySelectorAll('.kpi-ai');
+        aiMsgs.forEach((msg, idx) => {
+        setTimeout(() => {
+            msg.classList.add('show');
+        }, idx * 500); // 0.5秒間隔で順番に
+        });
+    });
+
     // チャート
     const ctx = document.getElementById('goalChart').getContext('2d');
     new Chart(ctx, {
-      type:'doughnut',
-      data:{ labels:['完了','進行中','承認待ち'], datasets:[{ data:[${summary.completed},${summary.inProgress},${summary.pendingApproval}], backgroundColor:['#28a745','#ffc107','#17a2b8'], borderWidth:2, borderColor:'#fff' }]},
-      options:{ responsive:true, maintainAspectRatio:false, animation:{ animateScale:true, animateRotate:true } }
+    type: 'doughnut',
+    data: {
+        labels: ['完了','進行中','承認待ち'],
+        datasets: [{
+        data: [${summary.completed},${summary.inProgress},${summary.pendingApproval}],
+        backgroundColor: ['#28a745','#ffc107','#17a2b8'],
+        borderWidth: 2,
+        borderColor: '#fff'
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,   // ← 正円にする
+        animation: {
+        animateScale: true,
+        animateRotate: true
+        }
+    }
     });
 
     // AI提案ボタン
     document.getElementById('aiSuggestBtn').addEventListener('click', async () => {
-      const rec = document.getElementById('aiRecommended');
-      const strat = document.getElementById('aiStrategy');
-      const prio = document.getElementById('aiPriority');
+    const rec = document.getElementById('aiRecommended');
+    const strat = document.getElementById('aiStrategy');
+    const prio = document.getElementById('aiPriority');
 
-      rec.innerHTML = '生成中...';
-      strat.innerHTML = '生成中...';
-      prio.innerHTML = '生成中...';
+    // ローディング演出
+    rec.innerHTML = '<li>🤖 AIが分析中...</li>';
+    strat.innerHTML = '<li>🤖 AIが戦略を考えています...</li>';
+    prio.innerHTML = '<li>🤖 AIが優先度を評価中...</li>';
 
-      const res = await fetch('/api/ai/goal-suggestions');
-      const data = await res.json();
+    try {
+        const res = await fetch('/api/ai/goal-suggestions');
+        const data = await res.json();
 
-      rec.innerHTML = '<ul>' + data.recommended.map(s=>'<li>'+s+'</li>').join('') + '</ul>';
-      strat.innerHTML = '<ul>' + data.strategy.map(s=>'<li>'+s+'</li>').join('') + '</ul>';
-      prio.innerHTML = '<ul>' + data.priority.map(s=>'<li>'+s+'</li>').join('') + '</ul>';
+        // ステップごとに順番に出す
+        function gradualInsert(targetEl, items) {
+        targetEl.innerHTML = '';
+        items.forEach((item, idx) => {
+            setTimeout(() => {
+            const li = document.createElement('li');
+            li.textContent = item;
+            targetEl.appendChild(li);
+            }, 800 * idx); // 0.8秒間隔で表示
+        });
+        }
+
+        gradualInsert(rec, data.recommended);
+        gradualInsert(strat, data.strategy);
+        gradualInsert(prio, data.priority);
+
+    } catch (e) {
+        rec.innerHTML = '<li>⚠️ 提案の取得に失敗しました</li>';
+        strat.innerHTML = '';
+        prio.innerHTML = '';
+    }
     });
   </script>
   `;
@@ -1913,8 +2054,26 @@ app.get('/goals', requireLogin, async (req, res) => {
   renderPage(req,res,'目標設定管理','目標管理ダッシュボード',html);
 });
 
-
-
+// 疑似AIレスポンス
+app.get('/api/ai/goal-suggestions', (req, res) => {
+  res.json({
+    recommended: [
+      "売上レポートの自動化を優先",
+      "顧客満足度アンケートを月末までに実施",
+      "社内勉強会の資料作成"
+    ],
+    strategy: [
+      "短期的に達成できる小目標を設定",
+      "関連部署と早めに連携",
+      "毎週進捗を可視化"
+    ],
+    priority: [
+      "売上関連タスク → 高",
+      "顧客体験改善 → 中",
+      "社内活動 → 低"
+    ]
+  });
+});
 
 // 目標作成フォーム
 app.get('/goals/add', requireLogin, async (req, res) => {
