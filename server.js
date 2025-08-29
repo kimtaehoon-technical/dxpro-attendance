@@ -99,6 +99,55 @@ const AttendanceSchema = new mongoose.Schema({
     notes: { type: String } // 비고 필드 추가
 });
 
+const BoardPostSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  content: { type: String, required: true },
+  tags: [String],
+  attachments: [{ name: String, url: String }],
+  pinned: { type: Boolean, default: false },
+  authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true },
+  views: { type: Number, default: 0 },
+  likes: { type: Number, default: 0 },
+}, { timestamps: true });
+module.exports = mongoose.model('BoardPost', BoardPostSchema);
+
+const BoardCommentSchema = new mongoose.Schema({
+  postId: { type: mongoose.Schema.Types.ObjectId, ref: 'BoardPost', required: true },
+  authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true },
+  content: { type: String, required: true },
+}, { timestamps: true });
+module.exports = mongoose.model('BoardComment', BoardCommentSchema);
+
+// models/PayrollSetting.js
+const PayrollSettingSchema = new mongoose.Schema({
+  companyName: String,
+  payDay: { type: Number, default: 25 },              // 毎月の支給日
+  defaultAllowances: [{ name: String, amount: Number }],
+  defaultDeductions: [{ name: String, amount: Number }],
+});
+module.exports = mongoose.model('PayrollSetting', PayrollSettingSchema);
+
+const PayrollRunSchema = new mongoose.Schema({
+  periodFrom: Date,
+  periodTo: Date,
+  locked: { type: Boolean, default: false },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee' },
+}, { timestamps: true });
+module.exports = mongoose.model('PayrollRun', PayrollRunSchema);
+
+const PayrollSlipSchema = new mongoose.Schema({
+  runId: { type: mongoose.Schema.Types.ObjectId, ref: 'PayrollRun', required: true },
+  employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true },
+  baseSalary: { type: Number, default: 0 },
+  allowances: [{ name: String, amount: Number }],
+  deductions: [{ name: String, amount: Number }],
+  gross: { type: Number, default: 0 },
+  net: { type: Number, default: 0 },
+  status: { type: String, enum: ['draft','issued','paid'], default: 'draft' },
+  notes: String,
+}, { timestamps: true });
+module.exports = mongoose.model('PayrollSlip', PayrollSlipSchema);
+
 // 승인 요청 모델 추가
 const ApprovalRequestSchema = new mongoose.Schema({
     employeeId: { type: String, required: true },
@@ -1701,8 +1750,8 @@ input, select, textarea { padding:8px; border-radius:6px; border:1px solid #ccc;
 <a href="/goals"><i class="fa-solid fa-bullseye"></i>目標設定管理</a>
 <a href="/hr"><i class="fa-solid fa-users"></i>人事管理</a>
 <a href="/leave/my-requests"><i class="fa-solid fa-plane-departure"></i>休暇管理</a>
-<a href="/leave/apply"><i class="fa-solid fa-yen-sign"></i>給与管理</a>
-<a href="/leave/apply"><i class="fa-solid fa-comments"></i>社内掲示板</a>
+<a href="/hr/payroll"><i class="fa-solid fa-yen-sign"></i>給与管理</a>
+<a href="/board"><i class="fa-solid fa-comments"></i>社内掲示板</a>
 ${req.session.isAdmin ? `<a href="/admin"><i class="fa-solid fa-user-shield"></i>管理者メニュー</a>` : ''}
 <div style="margin-top:auto;">
 <a href="/change-password"><i class="fa-solid fa-key"></i>パスワード変更</a>
@@ -2903,6 +2952,73 @@ app.get('/hr/payroll/:id', requireLogin, async (req, res) => {
     `;
     renderPage(req, res, '給与', '給与計算', html);
 });
+// 給与管理画面
+// app.get('/hr/payroll', requireLogin, async (req, res) => {
+//     try {
+//         const employee = req.session.employee;
+
+//         // 給与サンプルデータ
+//         const payrollHistory = [
+//             { month: "2025-07", base: 250000, overtime: 30000, deductions: 20000, total: 260000 },
+//             { month: "2025-06", base: 250000, overtime: 20000, deductions: 15000, total: 255000 },
+//             { month: "2025-05", base: 250000, overtime: 25000, deductions: 18000, total: 257000 },
+//         ];
+
+//         renderPage(req, res, "給与管理", `${employee.name} さんの給与情報`, `
+//             <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+//             <div class="container mt-4">
+//                 <h4 class="mb-3">給与履歴</h4>
+//                 <table class="table table-bordered table-hover">
+//                     <thead class="table-light">
+//                         <tr>
+//                             <th>月</th><th>基本給</th><th>残業代</th><th>控除</th><th>総支給額</th>
+//                         </tr>
+//                     </thead>
+//                     <tbody>
+//                         ${payrollHistory.map(p => `
+//                             <tr>
+//                                 <td>${p.month}</td>
+//                                 <td>¥${p.base.toLocaleString()}</td>
+//                                 <td>¥${p.overtime.toLocaleString()}</td>
+//                                 <td>¥${p.deductions.toLocaleString()}</td>
+//                                 <td><strong>¥${p.total.toLocaleString()}</strong></td>
+//                             </tr>
+//                         `).join('')}
+//                     </tbody>
+//                 </table>
+//             </div>
+//         `);
+
+//     } catch (err) {
+//         console.error(err);
+//         res.status(500).send("給与画面エラー");
+//     }
+// });
+
+// --- 給与管理（従業員用） ---
+app.get('/hr/payroll', requireLogin, async (req, res) => {
+    const slips = await PayrollSlip.find({ employeeId: req.session.employee._id }).populate('runId').sort({ createdAt: -1 });
+
+    renderPage(req, res, "給与管理", `${req.session.employee.name} さんの給与明細`, `
+        <div class="container mt-4">
+            <h4>給与履歴</h4>
+            <table class="table table-bordered">
+                <thead><tr><th>期間</th><th>基本給</th><th>総支給</th><th>差引支給</th><th>ステータス</th></tr></thead>
+                <tbody>
+                ${slips.map(s => `
+                    <tr>
+                        <td>${s.runId?.periodFrom?.toLocaleDateString()}〜${s.runId?.periodTo?.toLocaleDateString()}</td>
+                        <td>¥${s.baseSalary.toLocaleString()}</td>
+                        <td>¥${s.gross.toLocaleString()}</td>
+                        <td><strong>¥${s.net.toLocaleString()}</strong></td>
+                        <td>${s.status}</td>
+                    </tr>
+                `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `);
+});
 
 // CSVエクスポート
 app.get('/hr/export', requireLogin, async (req, res) => {
@@ -2922,6 +3038,94 @@ app.post('/hr/photo/:id', requireLogin, upload.single('photo'), async (req, res)
     const filename = req.file.filename;
     await Employee.findByIdAndUpdate(req.params.id, { photo: filename });
     res.redirect('/hr');
+});
+
+// // 社内掲示板画面
+// app.get('/board', requireLogin, async (req, res) => {
+//     try {
+//         const employee = req.session.employee;
+
+//         // 掲示板サンプルデータ
+//         const posts = [
+//             { title: "全社飲み会のお知らせ", content: "9月5日(金)に開催予定です。参加希望はフォームで回答お願いします。", author: "管理部", date: "2025-08-28" },
+//             { title: "勤怠ルール改定", content: "10月からフレックスタイム制度を導入します。詳細は人事部資料をご確認ください。", author: "人事部", date: "2025-08-25" },
+//             { title: "サマーイベント", content: "8月末にBBQを行います。家族参加も可能です。", author: "広報部", date: "2025-08-20" },
+//         ];
+
+//         renderPage(req, res, "社内掲示板", `${employee.name} さんへのお知らせ`, `
+//             <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+//             <div class="container mt-4">
+//                 <h4 class="mb-3">最新のお知らせ</h4>
+//                 ${posts.map(p => `
+//                     <div class="card mb-3">
+//                         <div class="card-body">
+//                             <h5 class="card-title">${p.title}</h5>
+//                             <p class="card-text">${p.content}</p>
+//                             <p class="card-text"><small class="text-muted">投稿者: ${p.author} ｜ ${p.date}</small></p>
+//                         </div>
+//                     </div>
+//                 `).join('')}
+//             </div>
+//         `);
+
+//     } catch (err) {
+//         console.error(err);
+//         res.status(500).send("掲示板画面エラー");
+//     }
+// });
+
+// --- 掲示板一覧 ---
+app.get('/board', requireLogin, async (req, res) => {
+    const posts = await BoardPost.find().populate('authorId').sort({ pinned: -1, createdAt: -1 });
+    renderPage(req, res, "社内掲示板", "最新のお知らせ", `
+        <div class="container mt-4">
+            <a href="/board/new" class="btn btn-primary mb-3">新規投稿</a>
+            ${posts.map(p => `
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <a href="/board/${p._id}">${p.title}</a>
+                            ${p.pinned ? '<span class="badge bg-warning text-dark ms-2">PIN</span>' : ''}
+                        </h5>
+                        <p class="card-text">${p.content.slice(0,100)}...</p>
+                        <small class="text-muted">
+                            投稿者: ${p.authorId?.name || '不明'} | ${p.createdAt.toLocaleDateString()}
+                        </small>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `);
+});
+
+// --- 掲示板詳細 ---
+app.get('/board/:id', requireLogin, async (req, res) => {
+    const post = await BoardPost.findByIdAndUpdate(req.params.id, { $inc: { views: 1 }}, { new: true }).populate('authorId');
+    const comments = await BoardComment.find({ postId: post._id }).populate('authorId').sort({ createdAt: -1 });
+
+    renderPage(req, res, post.title, "投稿詳細", `
+        <div class="container mt-4">
+            <h4>${post.title}</h4>
+            <p>${post.content}</p>
+            <p><small class="text-muted">投稿者: ${post.authorId?.name} | 閲覧数: ${post.views} | いいね: ${post.likes}</small></p>
+            <form action="/board/${post._id}/like" method="post">
+                <button class="btn btn-sm btn-outline-danger">いいね</button>
+            </form>
+            <hr>
+            <h5>コメント</h5>
+            <ul class="list-group">
+                ${comments.map(c => `
+                    <li class="list-group-item">
+                        ${c.content} - <small>${c.authorId?.name}</small>
+                    </li>
+                `).join('')}
+            </ul>
+            <form action="/board/${post._id}/comment" method="post" class="mt-3">
+                <textarea name="content" class="form-control mb-2" required></textarea>
+                <button class="btn btn-primary">コメントする</button>
+            </form>
+        </div>
+    `);
 });
 
 
